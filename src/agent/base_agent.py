@@ -1,146 +1,131 @@
-from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional, Union, AsyncGenerator, Tuple
-import logging
+from typing import List, Optional, Dict, Any, Union
+from .tools import Tool
+from .reasoning import ReasoningEngine
 
-from src.retrieval.searcher import Searcher
-from src.llm.client import LLMClient
 
-logger = logging.getLogger(__name__)
+class BaseAgent:
+    """
+    Base Agent class that provides common functionality for all RAG agents.
 
-class BaseAgent(ABC):
-    """私域公司信息处理基础Agent类，提供RAG流程的核心实现"""
+    A RAG (Retrieval-Augmented Generation) agent combines information retrieval
+    with generative capabilities to provide more accurate and contextually
+    relevant responses.
+    """
 
-    def __init__(
-        self,
-        llm_client: LLMClient,
-        searcher: Searcher,
-        max_context_length: int = 4000,
-        top_k: int = 5
-    ):
+    def __init__(self, name: str, description: Optional[str] = None):
         """
-        初始化基础Agent
+        Initialize a new BaseAgent.
 
         Args:
-            llm_client: 大语言模型客户端
-            searcher: 向量检索器
-            max_context_length: 上下文最大长度
-            top_k: 检索返回文档数量
+            name: Unique identifier for the agent
+            description: Optional human-readable description of the agent's purpose
         """
-        self.llm_client = llm_client
-        self.searcher = searcher
-        self.max_context_length = max_context_length
-        self.top_k = top_k
+        self.name = name
+        self.description = description
+        self.tools: List[Tool] = []
+        self.reasoning_engine: Optional[ReasoningEngine] = None
+        self.context: Dict[str, Any] = {}  # Store contextual information for the agent
 
-    async def process(
-        self,
-        query: str,
-        history: List[Dict[str, str]] = None,
-        stream: bool = False,
-        **kwargs
-    ) -> Union[Dict[str, Any], AsyncGenerator[Dict[str, Any], None]]:
+    def add_tool(self, tool: Tool) -> None:
         """
-        处理用户查询
+        Add a tool to the agent's toolset.
 
         Args:
-            query: 用户查询
-            history: 对话历史 [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]
-            stream: 是否使用流式输出
-            **kwargs: 额外参数
+            tool: The tool to add
+        """
+        # Avoid duplicate tools
+        if not any(t.name == tool.name for t in self.tools):
+            self.tools.append(tool)
+        else:
+            raise ValueError(f"Tool with name '{tool.name}' already exists")
+
+    def remove_tool(self, tool_name: str) -> bool:
+        """
+        Remove a tool from the agent's toolset.
+
+        Args:
+            tool_name: Name of the tool to remove
 
         Returns:
-            如果stream=False，返回字典: {"answer": str, "sources": List[Dict]}
-            如果stream=True，返回异步生成器，产生流式响应片段
+            True if the tool was found and removed, False otherwise
         """
-        history = history or []
+        for i, tool in enumerate(self.tools):
+            if tool.name == tool_name:
+                self.tools.pop(i)
+                return True
+        return False
 
-        # 检索相关文档
-        search_results = await self.search(query, self.top_k)
+    def get_tool(self, tool_name: str) -> Optional[Tool]:
+        """
+        Get a tool by its name.
 
-        # 准备上下文
-        context = self._prepare_context(search_results)
+        Args:
+            tool_name: Name of the tool to retrieve
 
-        # 构造提示词
-        prompt = self._build_prompt(query, context, history)
+        Returns:
+            Tool if found, None otherwise
+        """
+        for tool in self.tools:
+            if tool.name == tool_name:
+                return tool
+        return None
 
-        # 生成回答
-        if stream:
-            return self._generate_stream_response(prompt, search_results)
-        else:
-            answer = await self.llm_client.generate(prompt)
-            return {
-                "answer": answer,
-                "sources": self._format_sources(search_results)
-            }
+    def set_reasoning_engine(self, engine: ReasoningEngine) -> None:
+        """
+        Set the reasoning engine for the agent.
 
-    async def search(self, query: str, top_k: int) -> List[Dict]:
-        """执行检索"""
-        try:
-            results = await self.searcher.search(query, top_k=top_k)
-            logger.info(f"Retrieved {len(results)} documents for query: {query}")
-            return results
-        except Exception as e:
-            logger.error(f"Search failed: {str(e)}")
-            return []
+        Args:
+            engine: ReasoningEngine instance
+        """
+        self.reasoning_engine = engine
 
-    def _prepare_context(self, search_results: List[Dict]) -> str:
-        """将检索结果格式化为上下文字符串"""
-        if not search_results:
-            return ""
+    def set_context(self, key: str, value: Any) -> None:
+        """
+        Set a contextual value for the agent.
 
-        context_parts = []
-        for i, doc in enumerate(search_results):
-            context_parts.append(f"文档[{i+1}] {doc.get('title', '未知文档')}:\n{doc.get('content', '')}")
+        Args:
+            key: Context identifier
+            value: Context value
+        """
+        self.context[key] = value
 
-        return "\n\n".join(context_parts)
+    def get_context(self, key: str, default: Any = None) -> Any:
+        """
+        Get a contextual value from the agent.
 
-    def _build_prompt(self, query: str, context: str, history: List[Dict[str, str]]) -> str:
-        """构建提示词模板"""
-        history_text = ""
-        if history:
-            for msg in history:
-                role = msg.get("role", "")
-                content = msg.get("content", "")
-                history_text += f"{role}: {content}\n"
+        Args:
+            key: Context identifier
+            default: Default value to return if key not found
 
-        prompt = f"""你是一个专业的公司内部信息助手。请根据提供的公司文档回答问题。
-如果文档中没有相关信息，请明确说明"根据提供的文档，我无法回答这个问题"。
-不要编造信息，只基于提供的文档回答。
+        Returns:
+            The context value or default if not found
+        """
+        return self.context.get(key, default)
 
-历史对话:
-{history_text}
+    def process(self, query: str) -> Dict[str, Any]:
+        """
+        Process a user query using the agent's reasoning and tools.
 
-相关文档信息:
-{context}
+        Args:
+            query: User's input query
 
-用户问题: {query}
+        Returns:
+            The agent's response containing answer and reasoning
 
-请根据提供的文档信息回答用户问题:"""
+        Raises:
+            ValueError: If the reasoning engine is not set
+        """
+        if not self.reasoning_engine:
+            raise ValueError("Reasoning engine not set")
 
-        return prompt
+        # Generate reasoning path
+        reasoning_path = self.reasoning_engine.reason(query, self.tools)
 
-    def _format_sources(self, search_results: List[Dict]) -> List[Dict]:
-        """格式化来源信息"""
-        sources = []
-        for doc in search_results:
-            sources.append({
-                "title": doc.get("title", "未知文档"),
-                "url": doc.get("url", ""),
-                "score": doc.get("score", 0.0)
-            })
-        return sources
+        # Execute the reasoning path
+        result = self.reasoning_engine.execute(reasoning_path)
 
-    async def _generate_stream_response(self, prompt: str, search_results: List[Dict]):
-        """生成流式响应"""
-        sources = self._format_sources(search_results)
+        return result
 
-        async for token in self.llm_client.generate_stream(prompt):
-            yield {
-                "token": token,
-                "done": False
-            }
-
-        yield {
-            "token": "",
-            "sources": sources,
-            "done": True
-        }
+    def __repr__(self) -> str:
+        """String representation of the agent."""
+        return f"BaseAgent(name='{self.name}', tools={len(self.tools)})"
