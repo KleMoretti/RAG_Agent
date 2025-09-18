@@ -154,36 +154,46 @@ class ReasoningEngine:
 
         return result
 
-    def run(self, query: str) -> Tuple[str, List[ReasoningStep]]:
+    def run(self, query: str) -> tuple[str, list[ReasoningStep]]:
         """
-        Process a query and return a final answer with reasoning steps.
+        Process a query and return the final answer and reasoning steps.
 
         Args:
             query: The user's input query
 
         Returns:
-            A tuple containing the final answer and list of reasoning steps
+            A tuple containing (final_answer, reasoning_steps)
         """
-        # Create a simple reasoning path
-        reasoning_path = ReasoningPath(
-            query=query,
-            thoughts=f"Thinking about how to respond to: {query}"
-        )
+        # --- START: MODIFIED LOGIC ---
 
-        # Add a simple step
-        reasoning_path.steps.append(
-            ReasoningStep(
-                thought=f"I'll provide a direct response to: {query}"
-            )
-        )
+        # Define a prompt for the LLM
+        prompt = f"You are a helpful assistant. Please provide a conversational response to the following user query: '{query}'"
 
-        # Generate a simple answer
-        final_answer = f"Here's a response to your query: {query}"
-        reasoning_path.final_answer = final_answer
+        # Check if a model is available
+        if not self.model:
+            # Fallback for when no model is provided
+            final_answer = f"This is a placeholder response because no model is available. Query: {query}"
+            steps = [ReasoningStep(thought="No LLM model available, providing a default response.")]
+            return final_answer, steps
 
-        return final_answer, reasoning_path.steps
+        # Use the LLM to generate a real answer
+        try:
+            final_answer = self.model.generate(prompt)
+            steps = [
+                ReasoningStep(
+                    thought=f"Generated a response for the query '{query}' using the LLM.",
+                    tool_name=None,  # No tool was used
+                    tool_input=None
+                )
+            ]
+        except Exception as e:
+            final_answer = f"An error occurred while generating a response: {e}"
+            steps = [ReasoningStep(thought=f"Error during LLM call: {e}")]
+
+        return final_answer, steps
 
     def __repr__(self) -> str:
         """String representation of the reasoning engine."""
         model_name = getattr(self.model, 'name', str(self.model)) if self.model else 'None'
-        return f"ReasoningEngine(model={model_name})"
+        # Also update repr to show the correct tool count from the dictionary
+        return f"ReasoningEngine(model={model_name}, tools={len(self.tools)})"

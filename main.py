@@ -85,7 +85,7 @@ def create_agent(llm_client: OpenAIClient) -> RAGAgent:
         A configured RAGAgent.
     """
     # Create the reasoning engine with the LLM client
-    reasoning_engine = ReasoningEngine()
+    reasoning_engine = ReasoningEngine(model=llm_client)
 
     # Create the RAG agent
     agent = RAGAgent(
