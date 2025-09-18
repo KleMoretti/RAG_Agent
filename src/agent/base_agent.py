@@ -129,3 +129,59 @@ class BaseAgent:
     def __repr__(self) -> str:
         """String representation of the agent."""
         return f"BaseAgent(name='{self.name}', tools={len(self.tools)})"
+
+# -*- coding: utf-8 -*-
+"""
+RAGAgent implementation.
+"""
+from typing import Dict, Any
+
+from .reasoning import ReasoningEngine
+from ..llm import OpenAIClient
+# -*- coding: utf-8 -*-
+"""
+RAGAgent implementation.
+"""
+from typing import Dict, Any, List
+
+from .reasoning import ReasoningEngine
+from ..llm import OpenAIClient
+
+class RAGAgent:
+    """
+    A ReAct-style agent that uses a reasoning engine to answer queries.
+    """
+    def __init__(self, llm_client: OpenAIClient, reasoning_engine: ReasoningEngine, name: str = "RAG Agent"):
+        self.name = name
+        self.llm_client = llm_client
+        self.reasoning_engine = reasoning_engine
+        self.tools = []  # Changed from a dictionary reference to a simple list
+
+    def add_tool(self, tool):
+        """Adds a tool to the agent's reasoning engine."""
+        self.reasoning_engine.add_tool(tool)
+        self.tools.append(tool)  # Also add to the agent's tools list for easy access
+
+    def run(self, query: str) -> Dict[str, Any]:
+        """
+        Processes a query using the reasoning engine and returns a structured response.
+
+        Args:
+            query: The user's input query.
+
+        Returns:
+            A dictionary containing the final response and the reasoning steps.
+            Example:
+            {
+                "response": "The final answer is...",
+                "reasoning_steps": [...]
+            }
+        """
+        # The reasoning engine is expected to produce the final answer and the thought process.
+        final_answer, reasoning_steps = self.reasoning_engine.run(query)
+
+        # Structure the output as expected by main.py
+        return {
+            "response": final_answer,
+            "reasoning_steps": reasoning_steps
+        }

@@ -3,7 +3,11 @@ from __future__ import annotations
 from typing import Any, AsyncIterator, Optional
 import asyncio
 
+from dotenv import load_dotenv
 
+from src.llm.model_config import OpenAIConfig
+
+load_dotenv()
 class LLMError(Exception):
     pass
 
@@ -31,5 +35,39 @@ class LLMClient:
             await asyncio.sleep(0)
             yield token
 
+# -*- coding: utf-8 -*-
+"""
+LLM client for interfacing with OpenAI-compatible APIs.
+"""
+from openai import OpenAI
 
-__all__ = ["LLMClient", "LLMError"]
+class OpenAIClient:
+    """A client for interacting with an OpenAI-compatible LLM."""
+    def __init__(self, config: OpenAIConfig):
+        self.config = config
+        self.client = OpenAI(
+            api_key=config.api_key,
+            base_url=config.api_base,
+        )
+
+    def generate(self, prompt: str) -> str:
+        """
+        Generates a response from the LLM based on a given prompt.
+        """
+        try:
+            chat_completion = self.client.chat.completions.create(
+                messages=[
+                    {
+                        "role": "user",
+                        "content": prompt,
+                    }
+                ],
+                model=self.config.model_name,
+                temperature=self.config.temperature,
+                max_tokens=self.config.max_tokens,
+            )
+            return chat_completion.choices[0].message.content.strip()
+        except Exception as e:
+            print(f"Error during LLM generation: {e}")
+            return "Sorry, I encountered an error while processing your request."
+

@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional, Callable, Union
+from typing import List, Dict, Any, Optional, Callable, Union, Tuple
 from dataclasses import dataclass, field
 from .tools import Tool
 
@@ -9,6 +9,7 @@ class ReasoningStep:
     thought: str
     tool_name: Optional[str] = None
     tool_args: Dict[str, Any] = field(default_factory=dict)
+    tool_input: Optional[str] = None  # Added for compatibility with main.py
     result: Any = None
 
 
@@ -38,11 +39,21 @@ class ReasoningEngine:
         """
         self.model = model
         self.verbose = verbose
+        self.tools = {}  # Added tools dictionary
         self.callbacks: Dict[str, list[Callable]] = {
             'on_start': [],
             'on_step': [],
             'on_complete': []
         }
+
+    def add_tool(self, tool):
+        """
+        Add a tool to the reasoning engine.
+
+        Args:
+            tool: The tool to add
+        """
+        self.tools[tool.name] = tool
 
     def add_callback(self, event: str, callback: Callable) -> None:
         """
@@ -142,6 +153,35 @@ class ReasoningEngine:
         }
 
         return result
+
+    def run(self, query: str) -> Tuple[str, List[ReasoningStep]]:
+        """
+        Process a query and return a final answer with reasoning steps.
+
+        Args:
+            query: The user's input query
+
+        Returns:
+            A tuple containing the final answer and list of reasoning steps
+        """
+        # Create a simple reasoning path
+        reasoning_path = ReasoningPath(
+            query=query,
+            thoughts=f"Thinking about how to respond to: {query}"
+        )
+
+        # Add a simple step
+        reasoning_path.steps.append(
+            ReasoningStep(
+                thought=f"I'll provide a direct response to: {query}"
+            )
+        )
+
+        # Generate a simple answer
+        final_answer = f"Here's a response to your query: {query}"
+        reasoning_path.final_answer = final_answer
+
+        return final_answer, reasoning_path.steps
 
     def __repr__(self) -> str:
         """String representation of the reasoning engine."""

@@ -1,3 +1,4 @@
+from abc import abstractmethod, ABC
 from typing import Callable, Dict, Any, List, Optional, Union
 import inspect
 import functools
@@ -74,6 +75,66 @@ class Tool:
         """String representation of the tool."""
         return f"Tool(name='{self.name}')"
 
+# -*- coding: utf-8 -*-
+"""
+Collection of tools for the RAG Agent.
+This file contains concrete implementations of BaseTool.
+"""
+import ast
+import operator
+from typing import Dict, List, Union
+
+class SearchTool(Tool):
+    """Simple search tool that returns mock results."""
+    def __init__(self):
+        super().__init__(
+            name="search",
+            description="Search for information on a given topic. Returns a list of titles and URLs."
+        )
+
+    def run(self, query: str) -> List[Dict[str, str]]:
+        print(f"--- Running Search Tool with query: '{query}' ---")
+        return [
+            {"title": f"Result 1 for '{query}'", "url": "https://example.com/1"},
+            {"title": f"Result 2 for '{query}'", "url": "https://example.com/2"},
+        ]
+
+class CalculatorTool(Tool):
+    """
+    A safe calculator tool that evaluates mathematical expressions.
+    Supports basic arithmetic operations: +, -, *, /.
+    """
+    def __init__(self):
+        super().__init__(
+            name="calculator",
+            description="Calculate mathematical expressions. Example input: '2 + 3 * 4'"
+        )
+        self.operators = {
+            ast.Add: operator.add,
+            ast.Sub: operator.sub,
+            ast.Mult: operator.mul,
+            ast.Div: operator.truediv,
+        }
+
+    def _eval_expr(self, node):
+        """Safely evaluate an AST node."""
+        if isinstance(node, ast.Num):
+            return node.n
+        elif isinstance(node, ast.BinOp):
+            left = self._eval_expr(node.left)
+            right = self._eval_expr(node.right)
+            return self.operators[type(node.op)](left, right)
+        else:
+            raise TypeError(f"Unsupported operation: {type(node)}")
+
+    def run(self, expression: str) -> Union[float, str]:
+        """Safely evaluate the mathematical expression."""
+        print(f"--- Running Calculator Tool with expression: '{expression}' ---")
+        try:
+            tree = ast.parse(expression, mode='eval').body
+            return self._eval_expr(tree)
+        except (TypeError, KeyError, SyntaxError, ZeroDivisionError) as e:
+            return f"Error: Invalid or unsupported expression. {str(e)}"
 
 class ToolRegistry:
     """
@@ -211,3 +272,38 @@ def register_as_tool(registry: ToolRegistry, name: Optional[str] = None,
         return wrapper
 
     return decorator
+
+
+class BaseTool(ABC):
+    """Base abstract class for all tools."""
+
+    def __init__(self, name: str, description: str):
+        """
+        Initialize the base tool.
+
+        Args:
+            name: Name of the tool
+            description: Description of what the tool does
+        """
+        self.name = name
+        self.description = description
+
+    @abstractmethod
+    def run(self, input_data: Any) -> Any:
+        """
+        Execute the tool's functionality.
+
+        Args:
+            input_data: Input data for the tool
+
+        Returns:
+            Tool execution results
+        """
+        pass
+
+    def get_spec(self) -> Dict[str, str]:
+        """Get tool specification for the agent."""
+        return {
+            "name": self.name,
+            "description": self.description
+        }
