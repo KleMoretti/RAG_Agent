@@ -1,5 +1,6 @@
 import os
-from typing import Any
+import hashlib
+from typing import Any, List, Tuple
 
 class DataLoader:
     """
@@ -8,6 +9,62 @@ class DataLoader:
     """
 
     SUPPORTED_EXTS = {'.pdf', '.docx', '.doc', '.wav', '.mp3'}
+
+    def load_and_split(self, file_path: str, chunk_size: int = 1000) -> List[Dict[str, Any]]:
+        """
+        加载文件，分块并生成元数据。
+
+        Args:
+            file_path: 文件路径
+            chunk_size: 分块大小（字符数）
+
+        Returns:
+            包含必要元数据的文本块列表
+        """
+        text = self.load(file_path)
+        chunks = self._split_text(text, chunk_size)
+
+        results = []
+        for i, chunk in enumerate(chunks):
+            chunk_hash = hashlib.md5(chunk.encode()).hexdigest()
+            metadata = {
+                "file": os.path.basename(file_path),
+                "chunk_id": i,
+                "hash": chunk_hash,
+                "preview": chunk[:200] + ("..." if len(chunk) > 200 else "")
+            }
+            results.append(metadata)
+
+        return results
+
+    def _split_text(self, text: str, chunk_size: int) -> List[str]:
+        """
+        将文本分割为指定大小的块。
+
+        Args:
+            text: 原始文本
+            chunk_size: 分块大小
+
+        Returns:
+            文本块列表
+        """
+        chunks = []
+        current_chunk = []
+        current_size = 0
+
+        for sentence in text.split('。'):
+            sentence = sentence.strip() + '。'
+            if current_size + len(sentence) > chunk_size and current_chunk:
+                chunks.append(''.join(current_chunk))
+                current_chunk = []
+                current_size = 0
+            current_chunk.append(sentence)
+            current_size += len(sentence)
+
+        if current_chunk:
+            chunks.append(''.join(current_chunk))
+
+        return chunks
 
     def _load_pdf(self, file_path: str) -> str:
         import PyPDF2
