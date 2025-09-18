@@ -38,7 +38,7 @@ class ReasoningEngine:
         """
         self.model = model
         self.verbose = verbose
-        self.callbacks: Dict[str, Callable] = {
+        self.callbacks: Dict[str, list[Callable]] = {
             'on_start': [],
             'on_step': [],
             'on_complete': []

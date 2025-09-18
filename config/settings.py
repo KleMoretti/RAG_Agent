@@ -12,9 +12,15 @@ class Settings(BaseSettings):
     max_chunk_tokens: int = 350
     chunk_overlap: int = 40
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
+    # LLM configuration
+    llm_model: str = "gpt-4o-mini"
+    llm_timeout: float = 30.0
+
+    # Pydantic v2 style config (replaces inner Config class)
+    model_config = {
+        "env_file": ".env",
+        "case_sensitive": False,
+    }
 
 @lru_cache
 def get_settings() -> Settings:

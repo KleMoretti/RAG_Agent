@@ -26,7 +26,7 @@ class DataLoader:
         recognizer = sr.Recognizer()
         with sr.AudioFile(file_path) as source:
             audio = recognizer.record(source)
-        return recognizer.recognize_google(audio)
+        return recognizer.recognize_google(audio)  # type: ignore[attr-defined]
 
     def load(self, file_path: str) -> str:
         """
