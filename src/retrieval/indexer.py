@@ -7,11 +7,13 @@ import numpy as np
 from .vector_store import VectorStore
 
 class Indexer:
-    """批量文本分块、嵌入并写入向量库"""
+    """
+    批量文本分块、嵌入并写入向量库，适配 dataprocessing 的 Embedder/Preprocessor/DataLoader。
+    """
 
     def __init__(
         self,
-        embedder: Any,  # 需有 embed(List[str]) -> np.ndarray
+        embedder: Any,  # 需有 encode(List[str]) -> np.ndarray
         store: VectorStore,
         chunker: Callable[[str], List[str]],
         preprocessor: Callable[[str], str] | None = None,
@@ -22,7 +24,10 @@ class Indexer:
         self.preprocessor = preprocessor
 
     def index_file(self, file_path: str | Path, file_id: str | None = None) -> List[int]:
-        """索引单个文件，返回新加向量的 id 列表"""
+        """
+        索引单个文件，返回新加向量的 id 列表。
+        读取原始文本，预处理、分块、嵌入、写入向量库。
+        """
         file_path = Path(file_path)
         with file_path.open("r", encoding="utf-8") as f:
             text = f.read()
@@ -31,7 +36,7 @@ class Indexer:
         chunks = self.chunker(text)
         if not chunks:
             return []
-        vectors = self.embedder.embed(chunks)
+        vectors = self.embedder.encode(chunks, normalize=True)
         metadatas = []
         for i, chunk in enumerate(chunks):
             metadatas.append({
@@ -48,7 +53,9 @@ class Indexer:
             self.index_file(file)
 
     def index_dataset(self, dataset: List[dict[str, Any]]) -> None:
-        """索引结构化数据集（如 [{'text': ..., ...}, ...]）"""
+        """
+        索引结构化数据集（如 [{'text': ..., ...}, ...]）
+        """
         for item in dataset:
             text = item.get("text", "")
             if self.preprocessor:
@@ -56,7 +63,7 @@ class Indexer:
             chunks = self.chunker(text)
             if not chunks:
                 continue
-            vectors = self.embedder.embed(chunks)
+            vectors = self.embedder.encode(chunks, normalize=True)
             metadatas = []
             for i, chunk in enumerate(chunks):
                 meta = dict(item)
