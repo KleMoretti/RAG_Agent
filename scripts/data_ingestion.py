@@ -9,7 +9,7 @@ import json
 from src.data_processing.loader import DataLoader
 from src.data_processing.preprocessor import Preprocessor
 from src.data_processing.embedder import Embedder
-##from src.retrieval.indexer import VectorIndexer
+from src.retrieval.indexer import Indexer
 
 
 class DataIngestion:
@@ -24,7 +24,7 @@ class DataIngestion:
         self.processed_dir = Path(processed_dir)
         self.embeddings_dir = Path(embeddings_dir)
         self.supported_formats = supported_formats
-        self.indexer = VectorIndexer()
+        self.indexer = Indexer()
         # 初始化处理器实例
         self.loader = DataLoader()
         self.preprocessor = Preprocessor()
