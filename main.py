@@ -21,62 +21,8 @@ from src.llm import LLMClient, OpenAIClient, OpenAIConfig, EchoClient
 
 # --- Tool Definitions ---
 
-class SearchTool(BaseTool):
-    """Simple search tool that returns mock results."""
-    def __init__(self):
-        super().__init__(
-            name="search",
-            description="Search for information on a given topic. Returns a list of titles and URLs."
-        )
+from src.agent.tools import SearchTool, CalculatorTool, BaseTool
 
-    def run(self, input_data: str) -> List[Dict[str, str]]:
-        query = input_data
-        print(f"--- Running Search Tool with query: '{query}' ---")
-        return [
-            {"title": f"Result 1 for '{query}'", "url": "https://example.com/1"},
-            {"title": f"Result 2 for '{query}'", "url": "https://example.com/2"},
-        ]
-
-class CalculatorTool(BaseTool):
-    """
-    A safe calculator tool that evaluates mathematical expressions.
-    Supports basic arithmetic operations: +, -, *, /.
-    """
-    def __init__(self):
-        super().__init__(
-            name="calculator",
-            description="Calculate mathematical expressions. Example input: '2 + 3 * 4'"
-        )
-        self.operators = {
-            ast.Add: operator.add,
-            ast.Sub: operator.sub,
-            ast.Mult: operator.mul,
-            ast.Div: operator.truediv,
-        }
-
-    def _eval_expr(self, node):
-        """Safely evaluate an AST node."""
-        if isinstance(node, ast.Num):
-            return node.n
-        elif isinstance(node, ast.BinOp):
-            left = self._eval_expr(node.left)
-            right = self._eval_expr(node.right)
-            return self.operators[type(node.op)](left, right)
-        else:
-            raise TypeError(f"Unsupported operation: {type(node)}")
-
-    def run(self, input_data: str) -> Union[float, str]:
-        """Safely evaluate the mathematical expression."""
-        expression = input_data
-        print(f"--- Running Calculator Tool with expression: '{expression}' ---")
-        try:
-            # Parse the expression into an Abstract Syntax Tree (AST)
-            tree = ast.parse(expression, mode='eval').body
-            return self._eval_expr(tree)
-        except (TypeError, KeyError, SyntaxError, ZeroDivisionError) as e:
-            return f"Error: Invalid or unsupported expression. {str(e)}"
-
-from src.llm import LLMClient
 
 def create_agent(llm_client: LLMClient) -> RAGAgent:
     """

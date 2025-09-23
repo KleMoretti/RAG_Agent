@@ -83,7 +83,10 @@ class OpenAIClient(LLMClient):
                 temperature=self.config.temperature,
                 max_tokens=self.config.max_tokens,
             )
-            return chat_completion.choices[0].message.content.strip()
+            content = getattr(chat_completion.choices[0].message, 'content', None)
+            if isinstance(content, str):
+                return content.strip()
+            return ""
         except Exception as e:
             print(f"Error during LLM generation: {e}")
             return "Sorry, I encountered an error while processing your request."

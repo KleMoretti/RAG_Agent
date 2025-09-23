@@ -7,58 +7,64 @@ import functools
 class Tool:
     """
     Base class for all agent tools.
+
+    This class supports two usage patterns:
+    - Function-backed tools: provide a `function` callable at init and `execute` will call it.
+    - Subclass-backed tools: subclass `Tool` and implement a `run(self, input_data)` method.
     """
 
-    def __init__(self, name: str, description: str, function: Callable):
+    def __init__(self, name: str, description: str, function: Optional[Callable] = None):
         """
         Initialize a new tool.
 
         Args:
             name: Unique name for the tool
             description: Human-readable description of what the tool does
-            function: The function that implements the tool's functionality
+            function: Optional callable implementing the tool's functionality
         """
         self.name = name
         self.description = description
         self.function = function
-        self._validate_function()
+        if self.function is not None:
+            self._validate_function()
 
     def _validate_function(self) -> None:
-        """Validate that the function has proper signature and docstring."""
+        """Validate that the function has proper signature and docstring (only for function-backed tools)."""
         if not callable(self.function):
             raise TypeError("Tool function must be callable")
 
+        # Docstring is recommended for function-backed tools
         if not self.function.__doc__:
             raise ValueError(f"Tool '{self.name}' function must have a docstring")
 
     def execute(self, *args: Any, **kwargs: Any) -> Any:
         """
-        Execute the tool with given arguments.
-
-        Args:
-            *args: Positional arguments to pass to the function
-            **kwargs: Keyword arguments to pass to the function
-
-        Returns:
-            The result of the function call
-
-        Raises:
-            Exception: Any exception raised by the underlying function
+        Execute the tool with given arguments. Prefers the provided function, otherwise
+        falls back to a `run` method on the instance (subclass-backed tool).
         """
         try:
-            return self.function(*args, **kwargs)
-        except Exception as e:
-            # You might want to add logging here
+            if self.function is not None:
+                return self.function(*args, **kwargs)
+            elif hasattr(self, 'run'):
+                return getattr(self, 'run')(*args, **kwargs)
+            else:
+                raise TypeError("Tool has no callable `function` and no `run` method")
+        except Exception:
+            # Re-raise so callers can handle/log as needed
             raise
 
     def get_signature(self) -> Dict[str, Any]:
         """
-        Get the signature of the tool function.
+        Get the signature of the tool function or the instance `run` method.
 
         Returns:
             Dict containing parameter information
         """
-        sig = inspect.signature(self.function)
+        target = self.function if self.function is not None else getattr(self, 'run', None)
+        if target is None:
+            return {"parameters": {}, "return_type": "Any"}
+
+        sig = inspect.signature(target)
         return {
             "parameters": {
                 name: {
@@ -89,7 +95,8 @@ class SearchTool(Tool):
     def __init__(self):
         super().__init__(
             name="search",
-            description="Search for information on a given topic. Returns a list of titles and URLs."
+            description="Search for information on a given topic. Returns a list of titles and URLs.",
+            function=None
         )
 
     def run(self, query: str) -> List[Dict[str, str]]:
@@ -107,7 +114,8 @@ class CalculatorTool(Tool):
     def __init__(self):
         super().__init__(
             name="calculator",
-            description="Calculate mathematical expressions. Example input: '2 + 3 * 4'"
+            description="Calculate mathematical expressions. Example input: '2 + 3 * 4'",
+            function=None
         )
         self.operators = {
             ast.Add: operator.add,
