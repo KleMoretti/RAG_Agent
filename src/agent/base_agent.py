@@ -137,7 +137,7 @@ RAGAgent implementation.
 from typing import Dict, Any
 
 from .reasoning import ReasoningEngine
-from ..llm import OpenAIClient
+from ..llm import LLMClient
 # -*- coding: utf-8 -*-
 """
 RAGAgent implementation.
@@ -145,13 +145,13 @@ RAGAgent implementation.
 from typing import Dict, Any, List
 
 from .reasoning import ReasoningEngine
-from ..llm import OpenAIClient
+from ..llm import LLMClient
 
 class RAGAgent:
     """
     A ReAct-style agent that uses a reasoning engine to answer queries.
     """
-    def __init__(self, llm_client: OpenAIClient, reasoning_engine: ReasoningEngine, name: str = "RAG Agent"):
+    def __init__(self, llm_client: LLMClient, reasoning_engine: ReasoningEngine, name: str = "RAG Agent"):
         self.name = name
         self.llm_client = llm_client
         self.reasoning_engine = reasoning_engine

@@ -16,7 +16,7 @@ from typing import Dict, List, Union
 from src.agent import RAGAgent
 from src.agent.tools import BaseTool
 from src.agent.reasoning import ReasoningEngine
-from src.llm import OpenAIClient, OpenAIConfig
+from src.llm import LLMClient, OpenAIClient, OpenAIConfig, EchoClient
 
 
 # --- Tool Definitions ---
@@ -29,7 +29,8 @@ class SearchTool(BaseTool):
             description="Search for information on a given topic. Returns a list of titles and URLs."
         )
 
-    def run(self, query: str) -> List[Dict[str, str]]:
+    def run(self, input_data: str) -> List[Dict[str, str]]:
+        query = input_data
         print(f"--- Running Search Tool with query: '{query}' ---")
         return [
             {"title": f"Result 1 for '{query}'", "url": "https://example.com/1"},
@@ -64,8 +65,9 @@ class CalculatorTool(BaseTool):
         else:
             raise TypeError(f"Unsupported operation: {type(node)}")
 
-    def run(self, expression: str) -> Union[float, str]:
+    def run(self, input_data: str) -> Union[float, str]:
         """Safely evaluate the mathematical expression."""
+        expression = input_data
         print(f"--- Running Calculator Tool with expression: '{expression}' ---")
         try:
             # Parse the expression into an Abstract Syntax Tree (AST)
@@ -74,7 +76,9 @@ class CalculatorTool(BaseTool):
         except (TypeError, KeyError, SyntaxError, ZeroDivisionError) as e:
             return f"Error: Invalid or unsupported expression. {str(e)}"
 
-def create_agent(llm_client: OpenAIClient) -> RAGAgent:
+from src.llm import LLMClient
+
+def create_agent(llm_client: LLMClient) -> RAGAgent:
     """
     Create and configure an agent with tools and a reasoning engine.
 
@@ -115,23 +119,24 @@ def main():
     # Use API key from arguments or environment variable
     api_key = args.api_key or os.environ.get("QWEN_API_KEY")
     if not api_key:
-        print("Warning: No API key provided. Set the QWEN_API_KEY environment variable or use the --api-key argument.")
-        # Exit if no key is found, as the API will fail.
-        return
-
-    # Create model config and LLM client using the OpenAI-compatible interface
-    model_config = OpenAIConfig(
-        model_name=args.model,
-        api_key=api_key,
-        api_base=args.api_base,
-        temperature=args.temperature,
-        max_tokens=1500
-    )
-    llm_client = OpenAIClient(config=model_config)
+        print("Warning: No API key provided. Falling back to local EchoClient for offline/testing use.")
+        # Use a local synchronous echo client so the agent remains usable without external API.
+        llm_client = EchoClient(model=args.model)
+    else:
+        # Create model config and LLM client using the OpenAI-compatible interface
+        model_config = OpenAIConfig(
+            model_name=args.model,
+            api_key=api_key,
+            api_base=args.api_base,
+            temperature=args.temperature,
+            max_tokens=1500
+        )
+        llm_client = OpenAIClient(config=model_config)
 
     # Create and configure the agent
     agent = create_agent(llm_client)
-    print(f"🤖 {agent.name} initialized with model: {model_config.model_name}")
+    model_name = getattr(llm_client, 'model', None) or (model_config.model_name if 'model_config' in locals() else 'unknown')
+    print(f"🤖 {agent.name} initialized with model: {model_name}")
     print(f"   Available tools: {[tool.name for tool in agent.tools]}")
 
     # Interactive loop for chatting with the agent

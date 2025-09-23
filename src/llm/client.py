@@ -15,18 +15,22 @@ class LLMError(Exception):
 class LLMClient:
     """Minimal extensible LLM client abstraction.
 
-    Provides synchronous generate and async streaming generate.
-    Current implementation is an echo placeholder so other layers (agent, reasoning)
-    can depend on a stable interface without requiring a real provider.
+    Provides a synchronous `generate(prompt) -> str` method. Concrete clients
+    may implement synchronous or asynchronous behaviour; this base class
+    provides a compatibility layer.
     """
 
     def __init__(self, model: str = "echo", timeout: float = 30.0) -> None:
         self.model = model
         self.timeout = timeout
 
-    async def generate(self, prompt: str) -> str:
-        # Simple echo behaviour; replace with real provider logic later
-        await asyncio.sleep(0)
+    def generate(self, prompt: str) -> str:
+        """Synchronous generate API - default echo behaviour.
+
+        Subclasses may override this with a real provider implementation.
+        """
+        # Default: simple echo behaviour. Keep it synchronous so callers
+        # don't have to await in the common case.
         return f"[{self.model}] {prompt.strip()}"
 
     async def generate_stream(self, prompt: str) -> AsyncIterator[str]:
@@ -35,15 +39,28 @@ class LLMClient:
             await asyncio.sleep(0)
             yield token
 
+
+class EchoClient(LLMClient):
+    """Synchronous echo client used as a local fallback when no API key is set."""
+
+    def __init__(self, model: str = "echo") -> None:
+        super().__init__(model=model)
+
+    def generate(self, prompt: str) -> str:
+        # Slightly more informative echo for clarity
+        return f"[echo:{self.model}] {prompt.strip()}"
+
+
 # -*- coding: utf-8 -*-
 """
 LLM client for interfacing with OpenAI-compatible APIs.
 """
 from openai import OpenAI
 
-class OpenAIClient:
+class OpenAIClient(LLMClient):
     """A client for interacting with an OpenAI-compatible LLM."""
     def __init__(self, config: OpenAIConfig):
+        super().__init__(model=config.model_name)
         self.config = config
         self.client = OpenAI(
             api_key=config.api_key,

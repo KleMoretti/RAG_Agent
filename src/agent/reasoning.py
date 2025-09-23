@@ -178,7 +178,29 @@ class ReasoningEngine:
 
         # Use the LLM to generate a real answer
         try:
-            final_answer = self.model.generate(prompt)
+            # Call the model's generate method. It may be synchronous or return an awaitable.
+            result = self.model.generate(prompt)
+
+            # Detect awaitable results (async generate) and execute them safely.
+            import inspect
+            import asyncio
+            import concurrent.futures
+
+            if inspect.isawaitable(result):
+                try:
+                    loop = asyncio.get_event_loop()
+                except RuntimeError:
+                    loop = None
+
+                if loop is None or not loop.is_running():
+                    final_answer = asyncio.run(result)
+                else:
+                    # If an event loop is already running, run the coroutine in a separate thread.
+                    with concurrent.futures.ThreadPoolExecutor() as ex:
+                        final_answer = ex.submit(asyncio.run, result).result()
+            else:
+                final_answer = result
+
             steps = [
                 ReasoningStep(
                     thought=f"Generated a response for the query '{query}' using the LLM.",
