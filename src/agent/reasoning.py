@@ -9,20 +9,17 @@ class ReasoningStep:
     thought: str
     tool_name: Optional[str] = None
     tool_args: Dict[str, Any] = field(default_factory=dict)
-    tool_input: Optional[str] = None  # Added for compatibility with main.py
+    tool_input: Optional[str] = None
     result: Any = None
 
 
 @dataclass
 class ReasoningPath:
-    """
-    Represents a complete reasoning path with multiple steps.
-    """
+    """Represents a complete reasoning path with multiple steps."""
     query: str
     thoughts: str
     steps: List[ReasoningStep] = field(default_factory=list)
     final_answer: Optional[str] = None
-
 
 class ReasoningEngine:
     """
@@ -39,8 +36,8 @@ class ReasoningEngine:
         """
         self.model = model
         self.verbose = verbose
-        self.tools = {}  # Added tools dictionary
-        self.callbacks: Dict[str, list[Callable]] = {
+        self.tools = {}
+        self.callbacks: Dict[str, List[Callable]] = {
             'on_start': [],
             'on_step': [],
             'on_complete': []
@@ -56,40 +53,17 @@ class ReasoningEngine:
         self.tools[tool.name] = tool
 
     def add_callback(self, event: str, callback: Callable) -> None:
-        """
-        Add a callback for a specific reasoning event.
-
-        Args:
-            event: Event name ('on_start', 'on_step', 'on_complete')
-            callback: Callback function
-
-        Raises:
-            ValueError: If event name is not recognized
-        """
-        if event not in self.callbacks:
-            raise ValueError(f"Unknown event: {event}")
-        self.callbacks[event].append(callback)
+        if event in self.callbacks:
+            self.callbacks[event].append(callback)
 
     def _trigger_callbacks(self, event: str, **kwargs) -> None:
-        """Trigger all registered callbacks for an event."""
-        for callback in self.callbacks.get(event, []):
+        for cb in self.callbacks.get(event, []):
             try:
-                callback(**kwargs)
-            except Exception as e:
-                if self.verbose:
-                    print(f"Error in {event} callback: {e}")
+                cb(**kwargs)
+            except Exception:
+                pass
 
-    def reason(self, query: str, available_tools: List[Tool]) -> ReasoningPath:
-        """
-        Generate a reasoning path based on the query and available tools.
-
-        Args:
-            query: User's input query
-            available_tools: List of tools available to the agent
-
-        Returns:
-            A reasoning path (sequence of steps to execute)
-        """
+    def reason(self, query: str, available_tools: List[Any]) -> ReasoningPath:
         self._trigger_callbacks('on_start', query=query, tools=available_tools)
 
         # Here you would implement the logic to:
@@ -116,7 +90,6 @@ class ReasoningEngine:
         # )
 
         self._trigger_callbacks('on_complete', path=reasoning_path)
-
         return reasoning_path
 
     def execute(self, reasoning_path: ReasoningPath) -> Dict[str, Any]:
@@ -142,32 +115,37 @@ class ReasoningEngine:
         # Generate the final answer based on the results of all steps
         final_answer = "This is a placeholder response based on the reasoning path."
         reasoning_path.final_answer = final_answer
-
         result = {
             "answer": final_answer,
             "reasoning": reasoning_path.thoughts,
-            "steps": [
-                {"thought": step.thought, "result": step.result}
-                for step in reasoning_path.steps
-            ]
+            "steps": [],
         }
-
         return result
 
-    def run(self, query: str) -> tuple[str, list[ReasoningStep]]:
+    def run(self, query: str, chat_history: Optional[List[Dict[str, str]]] = None) -> tuple[str, List[ReasoningStep]]:
         """
-        Process a query and return the final answer and reasoning steps.
+        Process a query and return (final_answer, reasoning_steps).
 
-        Args:
-            query: The user's input query
-
-        Returns:
-            A tuple containing (final_answer, reasoning_steps)
+        chat_history: optional list like [{"role": "user"|"assistant", "content": "..."}]
         """
-        # --- START: MODIFIED LOGIC ---
+        # Build prompt with recent history
+        history_text = ""
+        if chat_history:
+            lines = []
+            for t in chat_history:
+                role = "User" if t.get("role") == "user" else "Assistant"
+                lines.append(f"{role}: {t.get('content', '')}")
+            history_text = "\n".join(lines)
 
-        # Define a prompt for the LLM
-        prompt = f"You are a helpful assistant. Please provide a conversational response to the following user query: '{query}'"
+        prompt_parts = [
+            "You are a helpful assistant.",
+        ]
+        if history_text:
+            prompt_parts.append("Here is the recent conversation (most recent last):")
+            prompt_parts.append(history_text)
+        prompt_parts.append(f"User: {query}")
+        prompt_parts.append("Assistant:")
+        prompt = "\n".join(prompt_parts)
 
         # If no model is configured, return a placeholder answer immediately
         if not self.model:

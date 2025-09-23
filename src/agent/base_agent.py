@@ -147,40 +147,95 @@ from typing import Dict, Any, List
 from .reasoning import ReasoningEngine
 from ..llm import LLMClient
 
+# -*- coding: utf-8 -*-
+from typing import Dict, Any, List, Optional
+from .tools import Tool
+from .reasoning import ReasoningEngine
+from ..llm import LLMClient
+from .memory import ConversationMemory
+
 class RAGAgent:
     """
     A ReAct-style agent that uses a reasoning engine to answer queries.
     """
+
     def __init__(self, llm_client: LLMClient, reasoning_engine: ReasoningEngine, name: str = "RAG Agent"):
         self.name = name
         self.llm_client = llm_client
         self.reasoning_engine = reasoning_engine
-        self.tools = []  # Changed from a dictionary reference to a simple list
+        # Wire LLM into reasoning engine if not already
+        if getattr(self.reasoning_engine, "model", None) is None:
+            self.reasoning_engine.model = self.llm_client
 
-    def add_tool(self, tool):
-        """Adds a tool to the agent's reasoning engine."""
-        self.reasoning_engine.add_tool(tool)
-        self.tools.append(tool)  # Also add to the agent's tools list for easy access
+        self.memory = ConversationMemory(max_turns=50)
+        self._tools: List[Tool] = []
+
+    @property
+    def tools(self) -> List[Tool]:
+        return self._tools
+
+    def add_tool(self, tool: Tool) -> None:
+        # Avoid duplicate tools
+        if not any(t.name == tool.name for t in self._tools):
+            self._tools.append(tool)
+            # Optional: also register into reasoning engine if it tracks tools
+            if hasattr(self.reasoning_engine, "add_tool"):
+                self.reasoning_engine.add_tool(tool)
+        else:
+            raise ValueError(f"Tool with name '{tool.name}' already exists")
+
+    def reset_memory(self) -> None:
+        self.memory.clear()
+
+    # --- meta question detectors ---
+    def _is_prev_question_query(self, text: str) -> bool:
+        key_phrases = [
+            "上一个问题是什么", "上一个问题是啥", "上个问题是什么", "上个问题是啥",
+            "刚才问了什么", "上一题是什么", "上一问是什么",
+            "what was the previous question", "previous question",
+        ]
+        return any(k in text.lower() for k in key_phrases)
+
+    def _is_first_question_query(self, text: str) -> bool:
+        key_phrases = [
+            "第一个问题是什么", "第一问是什么", "最开始的问题是什么",
+            "first question", "what was the first question",
+        ]
+        return any(k in text.lower() for k in key_phrases)
 
     def run(self, query: str) -> Dict[str, Any]:
         """
-        Processes a query using the reasoning engine and returns a structured response.
-
-        Args:
-            query: The user's input query.
-
-        Returns:
-            A dictionary containing the final response and the reasoning steps.
-            Example:
-            {
-                "response": "The final answer is...",
-                "reasoning_steps": [...]
-            }
+        Processes a query and returns {"response": str, "reasoning_steps": [...]}
         """
-        # The reasoning engine is expected to produce the final answer and the thought process.
-        final_answer, reasoning_steps = self.reasoning_engine.run(query)
+        # Handle meta-questions directly from memory (before adding current user input)
+        if self._is_prev_question_query(query):
+            last_q = self.memory.last_user_question()
+            answer = "还没有上一个问题。" if not last_q else f"上一个问题是：{last_q}"
+            # Record this turn
+            self.memory.add_user(query)
+            self.memory.add_assistant(answer)
+            return {"response": answer, "reasoning_steps": []}
 
-        # Structure the output as expected by main.py
+        if self._is_first_question_query(query):
+            first_q = self.memory.first_user_question()
+            answer = "还没有记录到任何问题。" if not first_q else f"第一个问题是：{first_q}"
+            # Record this turn
+            self.memory.add_user(query)
+            self.memory.add_assistant(answer)
+            return {"response": answer, "reasoning_steps": []}
+
+        # Normal flow: keep history, then reason with LLM
+        self.memory.add_user(query)
+
+        # Let the reasoning engine build a prompt with recent history
+        final_answer, reasoning_steps = self.reasoning_engine.run(
+            query=query,
+            chat_history=self.memory.as_messages(max_turns=10),  # recent 10 turns
+        )
+
+        # Record assistant's answer to memory
+        self.memory.add_assistant(final_answer)
+
         return {
             "response": final_answer,
             "reasoning_steps": reasoning_steps
