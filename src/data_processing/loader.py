@@ -70,7 +70,7 @@ class DataLoader:
     def _load_pdf(self, file_path: str) -> str:
         import PyPDF2
         with open(file_path, 'rb') as f:
-            reader = PyPDF2.PdfFileReader(f)
+            reader = PyPDF2.PdfReader(f)
             text = ''.join(page.extract_text() for page in reader.pages)
         return text
 
