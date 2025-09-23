@@ -19,3 +19,12 @@
 18. Performance: batch embeddings; avoid redundant FAISS loads; consider caching frequent queries.
 19. Security: validate user input before search/LLM; never log secrets; plan filters (`tenant_id`, `visibility`).
 20. No Cursor/Copilot rule files present now—update line 20 if added.
+
+
+Fallback EchoClient (local testing)
+
+- **When to use**: If you do not have a valid LLM API key (e.g. `QWEN_API_KEY`) or want to run the agent offline for tests and demos, the project falls back to a local `EchoClient` implementation.
+- **Behavior**: `EchoClient` is a synchronous, deterministic client that returns a simple echo of the prompt. It is suitable for unit/integration tests and interactive local runs where real LLM responses are not required.
+- **How to run**: Start the CLI without setting an API key:
+  - `python main.py`  # will use `EchoClient` and show prompts/responses locally
+- **Notes**: The echo client preserves the `LLMClient` interface so components (agents, reasoning engine, tools) can be exercised without network access.

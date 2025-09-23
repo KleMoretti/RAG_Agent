@@ -169,16 +169,16 @@ class ReasoningEngine:
         # Define a prompt for the LLM
         prompt = f"You are a helpful assistant. Please provide a conversational response to the following user query: '{query}'"
 
-        # Check if a model is available
+        # If no model is configured, return a placeholder answer immediately
         if not self.model:
-            # Fallback for when no model is provided
             final_answer = f"This is a placeholder response because no model is available. Query: {query}"
             steps = [ReasoningStep(thought="No LLM model available, providing a default response.")]
             return final_answer, steps
 
-        # Use the LLM to generate a real answer
+        # Otherwise, try to call the model (supports sync or async generate)
+        final_answer: str = ""
+        steps: list[ReasoningStep] = []
         try:
-            # Call the model's generate method. It may be synchronous or return an awaitable.
             result = self.model.generate(prompt)
 
             # Detect awaitable results (async generate) and execute them safely.
@@ -188,29 +188,50 @@ class ReasoningEngine:
 
             if inspect.isawaitable(result):
                 try:
-                    loop = asyncio.get_event_loop()
+                    running_loop = asyncio.get_running_loop()
                 except RuntimeError:
-                    loop = None
+                    running_loop = None
 
-                if loop is None or not loop.is_running():
-                    final_answer = asyncio.run(result)
+                # Use the awaitable/coroutine directly (no static cast needed)
+                coro = result
+
+                if running_loop is None:
+                    final_answer = asyncio.run(coro)
                 else:
-                    # If an event loop is already running, run the coroutine in a separate thread.
+                    # If an event loop is already running, execute the coroutine
+                    # in a separate thread with its own event loop.
+                    def _run_coro_in_thread(coro):
+                        new_loop = asyncio.new_event_loop()
+                        try:
+                            asyncio.set_event_loop(new_loop)
+                            return new_loop.run_until_complete(coro)
+                        finally:
+                            try:
+                                new_loop.close()
+                            except Exception:
+                                pass
+
                     with concurrent.futures.ThreadPoolExecutor() as ex:
-                        final_answer = ex.submit(asyncio.run, result).result()
+                        final_answer = ex.submit(_run_coro_in_thread, coro).result()
             else:
                 final_answer = result
 
             steps = [
                 ReasoningStep(
                     thought=f"Generated a response for the query '{query}' using the LLM.",
-                    tool_name=None,  # No tool was used
-                    tool_input=None
+                    tool_name=None,
+                    tool_input=None,
                 )
             ]
         except Exception as e:
             final_answer = f"An error occurred while generating a response: {e}"
             steps = [ReasoningStep(thought=f"Error during LLM call: {e}")]
+
+        # Ensure we always return a string for final_answer
+        try:
+            final_answer = str(final_answer)
+        except Exception:
+            final_answer = ""
 
         return final_answer, steps
 
