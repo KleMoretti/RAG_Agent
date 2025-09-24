@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeStylesController } from "@/components/theme-styles-controller";
+import { ConversationsProvider } from "@/lib/conversations";
 
 export const metadata: Metadata = {
   title: "RAG Agent UI",
@@ -15,10 +16,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh-CN">
-      <body className={`antialiased`}>
-        <ThemeStylesController />
-        {children}
-        <Toaster />
+      <body>
+        <ConversationsProvider>
+          {children}
+        </ConversationsProvider>
       </body>
     </html>
   );

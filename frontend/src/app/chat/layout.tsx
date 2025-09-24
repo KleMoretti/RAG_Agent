@@ -1,5 +1,5 @@
 "use client";
-import { useConversations } from "@/lib/conversations";
+import {useConversations, useConversationsContext} from "@/lib/conversations";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Plus, MessageSquare } from "lucide-react";
@@ -10,7 +10,7 @@ export default function ChatLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { list, currentId, select, create } = useConversations();
+  const { list, currentId, select, create } = useConversationsContext();
   const current = list.find((c) => c.id === currentId) || null;
 
   return (

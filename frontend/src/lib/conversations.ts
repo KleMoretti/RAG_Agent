@@ -1,11 +1,33 @@
 "use client"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useState, createContext, useContext } from "react"
 
 export type Conversation = {
   id: string
   title: string
   createdAt: number
   updatedAt: number
+}
+
+type ConversationsContextType = {
+  list: Conversation[]
+  current: Conversation | null
+  currentId: string | null
+  select: (id: string) => void
+  create: (title?: string) => string
+  rename: (id: string, title: string) => void
+  remove: (id: string) => void
+}
+
+// 创建Context
+export const ConversationsContext = createContext<ConversationsContextType | null>(null)
+
+// Context使用hook
+export function useConversationsContext() {
+  const context = useContext(ConversationsContext)
+  if (!context) {
+    throw new Error("useConversationsContext must be used within a ConversationsProvider")
+  }
+  return context
 }
 
 const LS_LIST = "rag_conversations"
@@ -80,7 +102,18 @@ export function useConversations() {
       }
       return next
     })
-  }, [currentId])
+  }, [])
 
   return { list, current, currentId, select, create, rename, remove }
+}
+
+// 创建Provider组件
+export function ConversationsProvider({ children }: { children: React.ReactNode }) {
+  const conversations = useConversations()
+
+  return React.createElement(
+    ConversationsContext.Provider,
+    { value: conversations },
+    children
+  );
 }

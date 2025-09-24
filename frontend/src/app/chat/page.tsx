@@ -11,7 +11,7 @@ import {
   type ReasoningStep as APIStep,
 } from "@/lib/api";
 //
-import { useConversations } from "@/lib/conversations";
+import { useConversationsContext } from "@/lib/conversations";
 import { ReasoningPanel } from "@/components/reasoning-panel";
 
 type Message = { role: "user" | "assistant"; content: string };
@@ -36,7 +36,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const { currentId, create } = useConversations();
+  const { currentId, create } = useConversationsContext();
   const listRef = useRef<HTMLDivElement>(null);
   const [lastSteps, setLastSteps] = useState<APIStep[] | undefined>([]);
 
