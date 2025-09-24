@@ -61,7 +61,7 @@ export default function ChatPage() {
   async function send() {
     const text = input.trim();
     if (!text) return;
-  const optimistic: Message = { role: "user", content: text };
+    const optimistic: Message = { role: "user", content: text };
     // 如果当前没有会话，创建一个
     const sid = currentId ?? create("新会话");
     setMessages((m) => {
@@ -82,7 +82,7 @@ export default function ChatPage() {
         return next;
       });
       setLastSteps(res.reasoning_steps || []);
-  // session is managed in sidebar hook
+      // session is managed in sidebar hook
     } catch (e) {
       setMessages((m) => {
         const next: Message[] = [

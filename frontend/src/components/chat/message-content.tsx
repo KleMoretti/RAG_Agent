@@ -1,36 +1,42 @@
-"use client"
-import React, { useMemo, useState } from "react"
-import ReactMarkdown, { type Components } from "react-markdown"
-import remarkGfm from "remark-gfm"
-import rehypeHighlight from "rehype-highlight"
-import rehypeSanitize, { defaultSchema, type Options as SanitizeOptions } from "rehype-sanitize"
-import { Button } from "@/components/ui/button"
+"use client";
+import React, { useMemo, useState } from "react";
+import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeHighlight from "rehype-highlight";
+import rehypeSanitize, {
+  defaultSchema,
+  type Options as SanitizeOptions,
+} from "rehype-sanitize";
+import { Button } from "@/components/ui/button";
 
 export function MessageContent({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState(false);
   const onCopy = async () => {
     try {
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1200)
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
     } catch {}
-  }
+  };
 
   const components: Components = useMemo(() => {
     const extractText = (node: unknown): string => {
-      if (typeof node === "string") return node
-      if (Array.isArray(node)) return (node as unknown[]).map(extractText).join("")
+      if (typeof node === "string") return node;
+      if (Array.isArray(node))
+        return (node as unknown[]).map(extractText).join("");
       if (React.isValidElement(node)) {
-        const props = (node as React.ReactElement).props as { children?: unknown }
-        return extractText(props.children)
+        const props = (node as React.ReactElement).props as {
+          children?: unknown;
+        };
+        return extractText(props.children);
       }
-      return ""
-    }
+      return "";
+    };
 
     return {
       pre: (p) => {
-        const { children } = p as { children?: React.ReactNode }
-        const raw = extractText(children)
+        const { children } = p as { children?: React.ReactNode };
+        const raw = extractText(children);
         return (
           <pre className="relative my-2 overflow-x-auto rounded-lg">
             {children}
@@ -44,34 +50,40 @@ export function MessageContent({ text }: { text: string }) {
               复制
             </Button>
           </pre>
-        )
+        );
       },
       code: (p) => {
         const { inline, className, children } = p as {
-          inline?: boolean
-          className?: string
-          children?: React.ReactNode
-        }
+          inline?: boolean;
+          className?: string;
+          children?: React.ReactNode;
+        };
         if (inline) {
           return (
-            <code className="rounded bg-[color-mix(in_oklch,var(--muted),black_10%)] px-1 py-0.5">{children}</code>
-          )
+            <code className="rounded bg-[color-mix(in_oklch,var(--muted),black_10%)] px-1 py-0.5">
+              {children}
+            </code>
+          );
         }
         // 非内联的代码块由自定义 pre 渲染器包裹，这里仅传递 className 以便语法高亮生效
-        return <code className={className ?? ""}>{children}</code>
+        return <code className={className ?? ""}>{children}</code>;
       },
-    }
-  }, [])
+    };
+  }, []);
 
   const sanitize = useMemo<SanitizeOptions>(() => {
-    const base = defaultSchema as SanitizeOptions
+    const base = defaultSchema as SanitizeOptions;
     const attributes = {
       ...(base.attributes || {}),
-      code: [...(base.attributes?.code || []), ["className"], ["data-language"]],
+      code: [
+        ...(base.attributes?.code || []),
+        ["className"],
+        ["data-language"],
+      ],
       pre: [...(base.attributes?.pre || []), ["className"]],
-    } as NonNullable<SanitizeOptions["attributes"]>
-    return { ...base, attributes }
-  }, [])
+    } as NonNullable<SanitizeOptions["attributes"]>;
+    return { ...base, attributes };
+  }, []);
 
   return (
     <div className="group relative">
@@ -94,5 +106,5 @@ export function MessageContent({ text }: { text: string }) {
         {copied ? "已复制" : "复制"}
       </Button>
     </div>
-  )
+  );
 }
