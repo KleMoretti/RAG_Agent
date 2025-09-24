@@ -4,6 +4,7 @@
 """
 Main application for RAG_Agent system.
 This module demonstrates how to use the RAG agent and LLM components.
+Also exposes a FastAPI app at /api/chat for frontend integration.
 """
 
 import os
@@ -18,9 +19,7 @@ from src.agent.tools import BaseTool
 from src.agent.reasoning import ReasoningEngine
 from src.llm import LLMClient, OpenAIClient, OpenAIConfig, EchoClient
 
-
 # --- Tool Definitions ---
-
 from src.agent.tools import SearchTool, CalculatorTool, BaseTool
 
 
@@ -72,12 +71,93 @@ def wrap_text(text: str, width: int) -> str:
             )
     return "\n".join(lines)
 
+# --------------------------- FastAPI app --------------------------- #
+try:
+    from fastapi import FastAPI
+    from fastapi.middleware.cors import CORSMiddleware
+    from pydantic import BaseModel
+
+    app = FastAPI(title="RAG Agent API")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:3000", "*"],  # dev convenience; tighten in prod
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    class ChatRequest(BaseModel):
+        message: str
+        session_id: str | None = None
+
+    class ChatResponse(BaseModel):
+        response: str
+        reasoning_steps: list[dict] | None = None
+
+    _app_agents: dict[str, RAGAgent] = {}
+
+    def _get_agent(session_id: str | None) -> RAGAgent:
+        key = session_id or "default"
+        if key in _app_agents:
+            return _app_agents[key]
+        api_key = os.environ.get("QWEN_API_KEY")
+        if api_key:
+            cfg = OpenAIConfig(model_name=os.environ.get("LLM_MODEL", "qwen-plus"), api_key=api_key)
+            llm = OpenAIClient(cfg)
+        else:
+            llm = EchoClient(model=os.environ.get("LLM_MODEL", "echo-ui"))
+        agent = create_agent(llm)
+        _app_agents[key] = agent
+        return agent
+
+    from dataclasses import is_dataclass, asdict
+    from typing import Any
+
+    def _serialize_steps(steps: list[Any] | None) -> list[dict]:
+        if not steps:
+            return []
+        out: list[dict] = []
+        for s in steps:
+            # Convert dataclass instances safely; skip dataclass types
+            if is_dataclass(s) and not isinstance(s, type):
+                try:
+                    out.append(asdict(s))
+                    continue
+                except Exception:
+                    pass
+            elif isinstance(s, dict):
+                out.append(s)
+                continue
+            # Fallback: best-effort conversion
+            try:
+                out.append(dict(s))  # type: ignore[arg-type]
+            except Exception:
+                try:
+                    out.append(getattr(s, "__dict__", {"value": str(s)}))
+                except Exception:
+                    out.append({"value": str(s)})
+        return out
+
+    @app.post("/api/chat", response_model=ChatResponse)
+    def chat(req: ChatRequest):
+        agent = _get_agent(req.session_id)
+        result = agent.run(req.message)
+        steps = _serialize_steps(result.get("reasoning_steps", []))
+        return {
+            "response": result.get("response", ""),
+            "reasoning_steps": steps,
+        }
+except Exception:
+    # FastAPI not installed or import error; CLI remains usable
+    app = None  # type: ignore
+
+# --------------------------- CLI entrypoint --------------------------- #
+
 def main():
     """
-    Main function to run the RAG_Agent system.
+    Main function to run the RAG_Agent system via CLI.
     """
     parser = argparse.ArgumentParser(description="RAG_Agent CLI")
-    # --- THIS LINE IS CHANGED ---
     parser.add_argument("--model", default="qwen-plus", help="LLM model to use (e.g., gpt-3.5-turbo, qwen-plus)")
     parser.add_argument("--api-base", default="https://dashscope.aliyuncs.com/compatible-mode/v1", help="The base URL for the LLM API.")
     parser.add_argument("--api-key", default=None, help="API key for the LLM. Can also be set via QWEN_API_KEY env var.")
@@ -104,7 +184,8 @@ def main():
 
     # Create and configure the agent
     agent = create_agent(llm_client)
-    model_name = getattr(llm_client, 'model', None) or (model_config.model_name if 'model_config' in locals() else 'unknown')
+    # Derive model name from client if available
+    model_name = getattr(llm_client, 'model', None) or 'unknown'
     print(f"🤖 {agent.name} initialized with model: {model_name}")
     print(f"   Available tools: {[tool.name for tool in agent.tools]}")
 
@@ -114,7 +195,7 @@ def main():
         query = input("\nYou: ")
         if query.lower() in ['exit', 'quit', 'q']:
             break
-            # Process the query through the agent's run method
+        # Process the query through the agent's run method
         term_width = shutil.get_terminal_size(fallback=(100, 24)).columns
         wrap_width = args.wrap_width or max(40, term_width - 4)  # 留点边距，且设置一个下限
         try:
