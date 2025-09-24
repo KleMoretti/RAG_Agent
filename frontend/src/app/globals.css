@@ -3,8 +3,7 @@
 @import "tailwindcss";
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/roboto-mono";
-/* highlight.js github-dark theme (optional, can switch to other themes) */
-@import "highlight.js/styles/github-dark.css";
+/* highlight.js 样式改为运行时按主题动态注入（见 ThemeStylesController） */
 
 /* 覆盖 highlight.js 代码块背景，避免与全局样式叠加产生双层背景 */
 :root .hljs,
