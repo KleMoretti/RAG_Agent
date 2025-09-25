@@ -8,21 +8,199 @@ Also exposes a FastAPI app at /api/chat for frontend integration.
 """
 
 import os
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+from dotenv import load_dotenv
 import argparse
-import ast
-import operator
-from typing import Dict, List, Union
 
 # Import components from our source folder
 from src.agent import RAGAgent
-from src.agent.tools import BaseTool
 from src.agent.reasoning import ReasoningEngine
 from src.llm import LLMClient, OpenAIClient, OpenAIConfig, EchoClient
 
 # --- Tool Definitions ---
-from src.agent.tools import SearchTool, CalculatorTool, BaseTool
-from dotenv import load_dotenv
-load_dotenv()
+from src.agent.tools import SearchTool, CalculatorTool
+
+# Load environment variables from .env files (root and src/llm/.env) early
+try:
+    # Load default .env in project root if present
+    load_dotenv()
+    # Explicitly load src/llm/.env if present
+    llm_env_path = Path(__file__).parent / "src" / "llm" / ".env"
+    if llm_env_path.exists():
+        load_dotenv(llm_env_path)
+except Exception:
+    # Don't fail if dotenv isn't available; requirements include it but keep robust
+    pass
+
+# --------------------------- RAG Agent construction --------------------------- #
+from functools import lru_cache
+
+# Reuse data processing + retrieval stack for uploads
+from src.data_processing.preprocessor import Preprocessor
+from src.data_processing.loader import DataLoader
+from src.data_processing.embedder import Embedder
+from src.retrieval.vector_store import VectorStore
+
+# Project data directories
+BASE_DIR = Path(__file__).parent
+DATA_DIR = BASE_DIR / "data"
+RAW_DIR = DATA_DIR / "raw"
+PROCESSED_DIR = DATA_DIR / "processed"
+EMBED_DIR = DATA_DIR / "embeddings"
+
+for _d in (RAW_DIR, PROCESSED_DIR, EMBED_DIR):
+    try:
+        _d.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+
+
+@lru_cache(maxsize=1)
+def get_preprocessor() -> Preprocessor:
+    return Preprocessor()
+
+
+@lru_cache(maxsize=1)
+def get_loader() -> DataLoader:
+    return DataLoader()
+
+
+@lru_cache(maxsize=1)
+def get_embedder() -> Embedder:
+    # Model name can be overridden by env if needed
+    model_name = os.environ.get("EMBED_MODEL", "all-MiniLM-L6-v2")
+    return Embedder(model_name=model_name)
+
+
+@lru_cache(maxsize=1)
+def get_vector_store() -> VectorStore:
+    emb = get_embedder()
+    index_path = EMBED_DIR / "index.faiss"
+    meta_path = EMBED_DIR / "index.meta.jsonl"
+    # Vectors we add below are already L2-normalized by Embedder.encode
+    return VectorStore(dim=emb.dim, index_path=index_path, metadata_path=meta_path, normalize=False)
+
+
+def _safe_filename(name: str) -> str:
+    # Very simple sanitization for filesystem compatibility
+    bad = ['..', '/', '\\', ':', '*', '?', '"', '<', '>', '|']
+    out = name
+    for b in bad:
+        out = out.replace(b, '_')
+    return out
+
+
+def _chunk_text(text: str, chunk_size: int = 1000, overlap: int = 150) -> List[str]:
+    """Sliding-window chunking to preserve context, works for both CN/EN text."""
+    text = (text or '').strip()
+    if not text:
+        return []
+    if len(text) <= chunk_size:
+        return [text]
+    chunks: List[str] = []
+    start = 0
+    while start < len(text):
+        end = min(start + chunk_size, len(text))
+        chunk = text[start:end]
+        if chunk.strip():
+            chunks.append(chunk.strip())
+        if end == len(text):
+            break
+        start = max(0, end - overlap)
+    return chunks
+
+
+def _text_from_file(saved_path: Path, orig_filename: str, content_type: Optional[str]) -> str:
+    """Best-effort text extraction for various file types using DataLoader when applicable."""
+    ext = saved_path.suffix.lower()
+    loader = get_loader()
+    try:
+        # Use DataLoader for supported rich formats
+        if ext in {'.pdf', '.docx', '.doc', '.wav', '.mp3'}:
+            return loader.load(str(saved_path))
+    except Exception:
+        # Fallback to plain text read below
+        pass
+    # Plain text fallback for common text/code formats
+    try:
+        return saved_path.read_text(encoding='utf-8', errors='ignore')
+    except Exception:
+        # Final fallback: binary decode best-effort
+        data = saved_path.read_bytes()
+        try:
+            return data.decode('utf-8', errors='ignore')
+        except Exception:
+            # As a last resort, return empty
+            return ""
+
+
+def process_and_index_file(saved_path: Path, file_id: str, orig_name: str, content_type: Optional[str]) -> List[Dict[str, Any]]:
+    """
+    Extract text, clean and chunk, persist processed chunks, and index into vector store.
+
+    Returns a list of {content, type, length} dicts for API preview.
+    """
+    pre = get_preprocessor()
+    text = _text_from_file(saved_path, orig_name, content_type)
+    cleaned = pre.clean_text(text)
+    # Prefer paragraph split then join or directly chunk cleaned
+    if not cleaned:
+        chunks: List[str] = []
+    else:
+        chunks = _chunk_text(cleaned, chunk_size=1000, overlap=150)
+
+    # Persist processed chunks as JSONL for traceability
+    out_jsonl = PROCESSED_DIR / f"{file_id}.chunks.jsonl"
+    try:
+        with out_jsonl.open('w', encoding='utf-8') as f:
+            for i, c in enumerate(chunks):
+                import json
+                f.write(json.dumps({
+                    "file_id": file_id,
+                    "file_name": orig_name,
+                    "chunk_id": i,
+                    "content": c,
+                    "length": len(c),
+                }, ensure_ascii=False) + "\n")
+    except Exception:
+        # Don't fail upload if processed save encounters an error
+        pass
+
+    # Build embeddings and add to persistent vector store
+    if chunks:
+        try:
+            emb = get_embedder()
+            vectors = emb.encode(chunks, normalize=True)
+            store = get_vector_store()
+            metadatas = []
+            import hashlib
+            for i, c in enumerate(chunks):
+                metadatas.append({
+                    "file": str(saved_path),
+                    "chunk_id": i,
+                    "hash": hashlib.md5(c.encode('utf-8')).hexdigest(),
+                    "preview": c[:100],
+                    "file_id": file_id,
+                    "file_name": orig_name,
+                })
+            store.add(vectors, metadatas)
+            # Persist to disk
+            store.save()
+        except Exception:
+            # Embedding/indexing errors shouldn't fully break the upload
+            pass
+
+    # Prepare API preview chunks
+    preview: List[Dict[str, Any]] = []
+    for c in chunks[:50]:  # limit preview count to avoid large payloads
+        preview.append({
+            "content": c,
+            "type": "text",
+            "length": len(c)
+        })
+    return preview
+
 
 def create_agent(llm_client: LLMClient) -> RAGAgent:
     """
@@ -78,8 +256,6 @@ try:
     from fastapi.middleware.cors import CORSMiddleware
     from pydantic import BaseModel
     import tempfile
-    import os
-    from pathlib import Path
     import mimetypes
     import hashlib
 
@@ -108,6 +284,8 @@ try:
         file_size: int | None = None
         content_type: str | None = None
         chunks: list[dict] | None = None
+        raw_path: str | None = None
+        processed_path: str | None = None
 
     _app_agents: dict[str, RAGAgent] = {}
 
@@ -115,7 +293,8 @@ try:
         key = session_id or "default"
         if key in _app_agents:
             return _app_agents[key]
-        api_key = os.environ.get("QWEN_API_KEY")
+        # Try multiple env var names for convenience
+        api_key = os.environ.get("QWEN_API_KEY") or os.environ.get("OPENAI_API_KEY")
         if api_key:
             cfg = OpenAIConfig(model_name=os.environ.get("LLM_MODEL", "qwen-plus"), api_key=api_key)
             llm = OpenAIClient(cfg)
@@ -197,28 +376,46 @@ try:
 
     @app.post("/api/upload", response_model=FileUploadResponse)
     async def upload_file(file: UploadFile = File(...)):
-        """上传文件并处理内容"""
+        """上传文件，保存到 data/raw，并进行文本提取/分块，保存到 data/processed，且写入向量库。"""
         try:
             # 读取文件内容
             content = await file.read()
-            
+            if not content:
+                return FileUploadResponse(success=False, message="空文件，无法处理")
+
             # 生成文件ID（基于内容哈希）
             file_hash = hashlib.md5(content).hexdigest()
-            file_id = f"{file_hash}_{file.filename}"
-            
-            # 处理文件内容
-            chunks = _process_file_content(file, content)
-            
+            safe_name = _safe_filename(file.filename or "upload")
+            file_id = f"{file_hash}_{safe_name}"
+
+            # 保存到 data/raw
+            raw_path = RAW_DIR / file_id
+            try:
+                with raw_path.open('wb') as f:
+                    f.write(content)
+            except Exception as e:
+                return FileUploadResponse(success=False, message=f"保存文件失败: {e}")
+
+            # 处理并索引
+            preview_chunks = process_and_index_file(raw_path, file_id=file_id, orig_name=file.filename, content_type=file.content_type)
+
+            # 写一个轻量处理完成标记文件（可选）
+            try:
+                (PROCESSED_DIR / f"{file_id}.done").write_text("ok", encoding='utf-8')
+            except Exception:
+                pass
+
             return FileUploadResponse(
                 success=True,
-                message=f"文件上传成功，已处理为 {len(chunks)} 个块",
+                message=f"文件上传成功，已处理为 {len(preview_chunks)} 个块",
                 file_id=file_id,
                 file_name=file.filename,
                 file_size=len(content),
                 content_type=file.content_type,
-                chunks=chunks
+                chunks=preview_chunks,
+                raw_path=str(raw_path),
+                processed_path=str(PROCESSED_DIR / f"{file_id}.chunks.jsonl"),
             )
-            
         except Exception as e:
             return FileUploadResponse(
                 success=False,
@@ -228,7 +425,88 @@ try:
     @app.post("/api/chat", response_model=ChatResponse)
     def chat(req: ChatRequest):
         agent = _get_agent(req.session_id)
-        result = agent.run(req.message)
+
+        # Retrieval: search vector store for relevant chunks
+        retrieved_context = ""
+        try:
+            pre = get_preprocessor()
+            cleaned_query = pre.clean_text(req.message)
+            if cleaned_query:
+                emb = get_embedder()
+                vec = emb.encode([cleaned_query], normalize=True)[0]
+                store = get_vector_store()
+                hits = store.search(vec, top_k=5, include_metadata=True)
+
+                # Load chunk contents from processed JSONL if available
+                contexts: list[str] = []
+                for h in hits:
+                    file_id = h.get("file_id")
+                    chunk_id = h.get("chunk_id")
+                    if file_id is None or chunk_id is None:
+                        # Fallback to preview
+                        preview = h.get("preview")
+                        if isinstance(preview, str) and preview:
+                            contexts.append(preview)
+                        continue
+
+                    jsonl_path = PROCESSED_DIR / f"{file_id}.chunks.jsonl"
+                    try:
+                        if jsonl_path.exists():
+                            # Read only the needed line(s)
+                            with jsonl_path.open('r', encoding='utf-8') as f:
+                                for line in f:
+                                    line = line.strip()
+                                    if not line:
+                                        continue
+                                    import json as _json
+                                    try:
+                                        rec = _json.loads(line)
+                                    except Exception:
+                                        continue
+                                    if rec.get("chunk_id") == chunk_id:
+                                        content = rec.get("content")
+                                        if isinstance(content, str) and content:
+                                            contexts.append(content)
+                                        break
+                        else:
+                            # As a fallback, read from raw file and ignore precise chunking
+                            preview = h.get("preview")
+                            if isinstance(preview, str) and preview:
+                                contexts.append(preview)
+                    except Exception:
+                        # Do not block chat on retrieval errors
+                        prev = h.get("preview")
+                        if isinstance(prev, str) and prev:
+                            contexts.append(prev)
+
+                if contexts:
+                    # Deduplicate and limit length
+                    seen = set()
+                    uniq: list[str] = []
+                    for c in contexts:
+                        key = c[:80]
+                        if key in seen:
+                            continue
+                        seen.add(key)
+                        uniq.append(c)
+                    # Build context section
+                    retrieved_context = "\n\n".join(uniq[:5])
+        except Exception:
+            # Retrieval is best-effort; continue without context on errors
+            retrieved_context = ""
+
+        # If we have retrieved context, prepend it to the user's message
+        user_message = req.message
+        if retrieved_context:
+            user_message = (
+                "请结合以下检索到的相关内容回答问题。\n\n" +
+                "【检索上下文】\n" +
+                retrieved_context +
+                "\n\n【用户问题】\n" +
+                req.message
+            )
+
+        result = agent.run(user_message)
         steps = _serialize_steps(result.get("reasoning_steps", []))
         return {
             "response": result.get("response", ""),
