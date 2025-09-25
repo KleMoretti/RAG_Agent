@@ -1,4 +1,4 @@
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 from pathlib import Path
 
@@ -16,12 +16,21 @@ class Settings(BaseSettings):
     llm_model: str = "gpt-4o-mini"
     llm_timeout: float = 30.0
 
-    # Pydantic v2 style config (replaces inner Config class)
-    model_config = {
-        "env_file": ".env",
-        "case_sensitive": False,
-    }
+    # Database (MySQL) configuration
+    # Example: mysql+pymysql://user:password@localhost:3306/rag_agent?charset=utf8mb4
+    database_url: str = (
+        "mysql+pymysql://root:123456@127.0.0.1:3306/rag_agent?charset=utf8mb4"
+    )
 
+    # Security / JWT
+    jwt_secret_key: str = "change-me-in-env"
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_expires_minutes: int = 60 * 24
+    # Pydantic v2 + pydantic-settings
+    model_config = SettingsConfigDict(
+           env_file = ".env",
+           case_sensitive = False,
+    )
 @lru_cache
 def get_settings() -> Settings:
     s = Settings()
