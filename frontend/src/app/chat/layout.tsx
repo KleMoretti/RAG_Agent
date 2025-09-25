@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Plus, MessageSquare } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useEffect, useState } from "react";
 
 export default function ChatLayout({
   children,
@@ -12,6 +13,17 @@ export default function ChatLayout({
 }) {
   const { list, currentId, select, create } = useConversationsContext();
   const current = list.find((c) => c.id === currentId) || null;
+  const [userRole, setUserRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    const raw = localStorage.getItem("user");
+    if (raw) {
+      try {
+        const u = JSON.parse(raw);
+        setUserRole(u?.role || null);
+      } catch {}
+    }
+  }, []);
 
   return (
     <div className="flex h-[100dvh]">
@@ -23,6 +35,9 @@ export default function ChatLayout({
               会话
             </div>
             <div className="flex items-center gap-2">
+              {userRole && (
+                <span className="text-xs text-[var(--sidebar-foreground)]">角色: {userRole}</span>
+              )}
               <ThemeToggle />
               <Button
                 size="sm"

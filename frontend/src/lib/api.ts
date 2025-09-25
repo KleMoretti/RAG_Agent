@@ -18,6 +18,27 @@ export type FileUploadResponse = {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
 
+export type TokenResponse = { access_token: string; token_type: string }
+export type MeResponse = { id: number; username: string; role: string }
+
+export async function login(username: string, password: string): Promise<TokenResponse> {
+  const res = await fetch(`${API_BASE}/api/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  })
+  if (!res.ok) throw new Error(`Login error: ${res.status}`)
+  return res.json()
+}
+
+export async function me(token: string): Promise<MeResponse> {
+  const res = await fetch(`${API_BASE}/api/auth/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error(`Me error: ${res.status}`)
+  return res.json()
+}
+
 export async function chat(req: ChatRequest): Promise<ChatResponse> {
   const res = await fetch(`${API_BASE}/api/chat`, {
     method: "POST",

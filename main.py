@@ -287,6 +287,13 @@ try:
         raw_path: str | None = None
         processed_path: str | None = None
 
+    # Mount auth routes
+    try:
+        from src.api.auth import router as auth_router
+        app.include_router(auth_router)
+    except Exception:
+        pass
+
     _app_agents: dict[str, RAGAgent] = {}
 
     def _get_agent(session_id: str | None) -> RAGAgent:

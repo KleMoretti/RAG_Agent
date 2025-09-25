@@ -17,3 +17,9 @@ loguru
 orjson
 pytest
 pytest-asyncio
+sqlalchemy
+pymysql
+passlib[bcrypt]
+PyJWT
+pathlib
+pydantic-settings
