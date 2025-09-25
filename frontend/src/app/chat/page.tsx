@@ -9,10 +9,12 @@ import {
   chat,
   type ChatResponse,
   type ReasoningStep as APIStep,
+  type FileUploadResponse,
 } from "@/lib/api";
 //
 import { useConversationsContext } from "@/lib/conversations";
 import { ReasoningPanel } from "@/components/reasoning-panel";
+import { FileUpload } from "@/components/file-upload";
 
 type Message = { role: "user" | "assistant"; content: string };
 const LS_MESSAGES_PREFIX = "rag_messages_";
@@ -39,6 +41,7 @@ export default function ChatPage() {
   const { currentId, create } = useConversationsContext();
   const listRef = useRef<HTMLDivElement>(null);
   const [lastSteps, setLastSteps] = useState<APIStep[] | undefined>([]);
+  const [showFileUpload, setShowFileUpload] = useState(false);
 
   // 切换会话时，加载该会话消息；无会话则清空
   useEffect(() => {
@@ -107,6 +110,22 @@ export default function ChatPage() {
     }
   }
 
+  function handleFileUploadSuccess(response: FileUploadResponse) {
+    // 将文件上传结果作为消息添加到对话中
+    const fileMessage = `📁 文件上传成功: ${response.file_name}\n\n${response.message}`;
+    const sid = currentId ?? create("新会话");
+    setMessages((m) => {
+      const next: Message[] = [...m, { role: "user", content: fileMessage }];
+      writeConvMessages(sid, next);
+      return next;
+    });
+    setShowFileUpload(false);
+  }
+
+  function handleFileUploadError(error: string) {
+    console.error("File upload error:", error);
+  }
+
   return (
     <div className="flex h-[calc(100dvh-2rem)] flex-col py-4">
       {/* 消息列表，占据剩余空间，独立滚动 */}
@@ -131,7 +150,23 @@ export default function ChatPage() {
             tool_input: s.tool_input ?? null,
           }))}
         />
+        {showFileUpload && (
+          <div className="mb-3">
+            <FileUpload
+              onUploadSuccess={handleFileUploadSuccess}
+              onUploadError={handleFileUploadError}
+            />
+          </div>
+        )}
+        
         <div className="mt-3 flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setShowFileUpload(!showFileUpload)}
+            className="shrink-0"
+          >
+            📁 文件
+          </Button>
           <Textarea
             placeholder="输入消息，Enter 发送，Shift+Enter 换行"
             value={input}

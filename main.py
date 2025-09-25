@@ -21,7 +21,8 @@ from src.llm import LLMClient, OpenAIClient, OpenAIConfig, EchoClient
 
 # --- Tool Definitions ---
 from src.agent.tools import SearchTool, CalculatorTool, BaseTool
-
+from dotenv import load_dotenv
+load_dotenv()
 
 def create_agent(llm_client: LLMClient) -> RAGAgent:
     """
@@ -73,9 +74,14 @@ def wrap_text(text: str, width: int) -> str:
 
 # --------------------------- FastAPI app --------------------------- #
 try:
-    from fastapi import FastAPI
+    from fastapi import FastAPI, UploadFile, File, HTTPException
     from fastapi.middleware.cors import CORSMiddleware
     from pydantic import BaseModel
+    import tempfile
+    import os
+    from pathlib import Path
+    import mimetypes
+    import hashlib
 
     app = FastAPI(title="RAG Agent API")
     app.add_middleware(
@@ -93,6 +99,15 @@ try:
     class ChatResponse(BaseModel):
         response: str
         reasoning_steps: list[dict] | None = None
+
+    class FileUploadResponse(BaseModel):
+        success: bool
+        message: str
+        file_id: str | None = None
+        file_name: str | None = None
+        file_size: int | None = None
+        content_type: str | None = None
+        chunks: list[dict] | None = None
 
     _app_agents: dict[str, RAGAgent] = {}
 
@@ -137,6 +152,78 @@ try:
                 except Exception:
                     out.append({"value": str(s)})
         return out
+
+    def _process_text_file(content: bytes, file_name: str) -> list[dict]:
+        """处理文本文件，进行分块"""
+        text = content.decode('utf-8', errors='ignore')
+        # 简单的分块策略：按段落分割，每块最多1000字符
+        paragraphs = text.split('\n\n')
+        chunks = []
+        current_chunk = ""
+        
+        for para in paragraphs:
+            if len(current_chunk) + len(para) > 1000 and current_chunk:
+                chunks.append({
+                    "content": current_chunk.strip(),
+                    "type": "text",
+                    "length": len(current_chunk)
+                })
+                current_chunk = para
+            else:
+                current_chunk += "\n\n" + para if current_chunk else para
+        
+        if current_chunk.strip():
+            chunks.append({
+                "content": current_chunk.strip(),
+                "type": "text", 
+                "length": len(current_chunk)
+            })
+        
+        return chunks
+
+    def _process_file_content(file: UploadFile, content: bytes) -> list[dict]:
+        """根据文件类型处理内容"""
+        content_type = file.content_type or ""
+        
+        if content_type.startswith('text/') or file.filename.endswith(('.txt', '.md', '.py', '.js', '.ts', '.json')):
+            return _process_text_file(content, file.filename)
+        else:
+            # 对于非文本文件，返回基本信息
+            return [{
+                "content": f"文件类型: {content_type}\n文件名: {file.filename}\n大小: {len(content)} 字节",
+                "type": "file_info",
+                "length": len(content)
+            }]
+
+    @app.post("/api/upload", response_model=FileUploadResponse)
+    async def upload_file(file: UploadFile = File(...)):
+        """上传文件并处理内容"""
+        try:
+            # 读取文件内容
+            content = await file.read()
+            
+            # 生成文件ID（基于内容哈希）
+            file_hash = hashlib.md5(content).hexdigest()
+            file_id = f"{file_hash}_{file.filename}"
+            
+            # 处理文件内容
+            chunks = _process_file_content(file, content)
+            
+            return FileUploadResponse(
+                success=True,
+                message=f"文件上传成功，已处理为 {len(chunks)} 个块",
+                file_id=file_id,
+                file_name=file.filename,
+                file_size=len(content),
+                content_type=file.content_type,
+                chunks=chunks
+            )
+            
+        except Exception as e:
+            return FileUploadResponse(
+                success=False,
+                message=f"文件处理失败: {str(e)}"
+            )
 
     @app.post("/api/chat", response_model=ChatResponse)
     def chat(req: ChatRequest):
