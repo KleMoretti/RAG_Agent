@@ -15,8 +15,16 @@ export default function RegisterPage() {
 
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (token) {
-      router.replace("/chat");
+    const user = localStorage.getItem("user");
+    if (token && user) {
+      // 验证token是否有效
+      me(token).then(() => {
+        router.replace("/chat");
+      }).catch(() => {
+        // token无效，清除并留在注册页面
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+      });
     }
   }, [router]);
 
@@ -42,13 +50,24 @@ export default function RegisterPage() {
       return;
     }
     try {
+      // 先注册用户
       await register(username, password);
+      
+      // 注册成功后，等待一小段时间再登录，确保数据库事务完成
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // 登录获取token
       const t = await login(username, password);
       localStorage.setItem("token", t.access_token);
+      
+      // 获取用户信息
       const info = await me(t.access_token);
       localStorage.setItem("user", JSON.stringify(info));
+      
+      // 跳转到聊天页面
       router.replace("/chat");
     } catch (e: any) {
+      console.error("Registration error:", e);
       setError(e?.message || "注册失败");
     } finally {
       setLoading(false);

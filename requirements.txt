@@ -2,7 +2,7 @@ fastapi
 uvicorn
 pydantic
 python-dotenv
-sentence-transformers
+sentence-transformers==2.2.2
 faiss-cpu
 numpy
 scikit-learn
@@ -23,3 +23,7 @@ passlib[bcrypt]
 PyJWT
 pathlib
 pydantic-settings
+chromadb
+huggingface-hub
+tokenizers
+transformers

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 //
@@ -13,6 +14,7 @@ import {
 } from "@/lib/api";
 //
 import { useConversationsContext } from "@/lib/conversations";
+import { useAuth } from "@/lib/auth";
 import { ReasoningPanel } from "@/components/reasoning-panel";
 import { FileUpload } from "@/components/file-upload";
 
@@ -35,6 +37,8 @@ function writeConvMessages(id: string, list: Message[]) {
 }
 
 export default function ChatPage() {
+  const router = useRouter();
+  const { user, isLoading, logout } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -42,6 +46,13 @@ export default function ChatPage() {
   const listRef = useRef<HTMLDivElement>(null);
   const [lastSteps, setLastSteps] = useState<APIStep[] | undefined>([]);
   const [showFileUpload, setShowFileUpload] = useState(false);
+
+  // 检查认证状态
+  useEffect(() => {
+    if (!isLoading && !user) {
+      router.replace("/login");
+    }
+  }, [user, isLoading, router]);
 
   // 切换会话时，加载该会话消息；无会话则清空
   useEffect(() => {
@@ -126,8 +137,26 @@ export default function ChatPage() {
     console.error("File upload error:", error);
   }
 
+  if (isLoading) {
+    return (
+      <div className="flex h-[calc(100dvh-2rem)] items-center justify-center">
+        <div className="text-sm text-gray-500">加载中...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-[calc(100dvh-2rem)] flex-col py-4">
+      {/* 顶部用户信息和登出按钮 */}
+      <div className="flex justify-between items-center mb-4 px-2">
+        <div className="text-sm text-gray-600">
+          欢迎，{user?.username}
+        </div>
+        <Button variant="outline" size="sm" onClick={logout}>
+          登出
+        </Button>
+      </div>
+      
       {/* 消息列表，占据剩余空间，独立滚动 */}
       <div ref={listRef} className="flex-1 overflow-y-auto pr-2">
         <div className="space-y-3">

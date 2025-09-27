@@ -65,6 +65,15 @@ export async function me(token: string): Promise<MeResponse> {
   return res.json()
 }
 
+export async function refreshToken(token: string): Promise<TokenResponse> {
+  const res = await fetch(`${API_BASE}/api/auth/refresh`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error(`Refresh token error: ${res.status}`)
+  return res.json()
+}
+
 export async function chat(req: ChatRequest): Promise<ChatResponse> {
   const res = await fetch(`${API_BASE}/api/chat`, {
     method: "POST",

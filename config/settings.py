@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     # Security / JWT
     jwt_secret_key: str = "change-me-in-env"
     jwt_algorithm: str = "HS256"
-    jwt_access_token_expires_minutes: int = 60 * 24
+    jwt_access_token_expires_minutes: int = 60 * 2  # 2小时
     # Pydantic v2 + pydantic-settings
     model_config = SettingsConfigDict(
            env_file = ".env",
