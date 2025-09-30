@@ -68,11 +68,37 @@ class DataLoader:
         return chunks
 
     def _load_pdf(self, file_path: str) -> str:
-        import PyPDF2
-        with open(file_path, 'rb') as f:
-            reader = PyPDF2.PdfReader(f)
-            text = ''.join(page.extract_text() for page in reader.pages)
-        return text
+        """
+        Load PDF using PyMuPDF (fitz) which provides better text extraction.
+        Falls back to PyPDF2 if PyMuPDF is not available.
+        """
+        try:
+            import fitz  # PyMuPDF
+            doc = fitz.open(file_path)
+            text_parts = []
+            for page in doc:
+                text_parts.append(page.get_text())
+            doc.close()
+            text = ''.join(text_parts)
+            # Clean up excessive spaces between characters (common PDF issue)
+            import re
+            # Replace multiple spaces with single space
+            text = re.sub(r' {2,}', ' ', text)
+            # Fix space-separated single characters (e.g., "h e l l o" -> "hello")
+            # This pattern matches single chars separated by spaces
+            text = re.sub(r'\b(\w) (?=\w\b)', r'\1', text)
+            return text
+        except ImportError:
+            # Fallback to PyPDF2 if PyMuPDF is not available
+            import PyPDF2
+            with open(file_path, 'rb') as f:
+                reader = PyPDF2.PdfReader(f)
+                text = ''.join(page.extract_text() for page in reader.pages)
+            # Apply same cleanup for PyPDF2
+            import re
+            text = re.sub(r' {2,}', ' ', text)
+            text = re.sub(r'\b(\w) (?=\w\b)', r'\1', text)
+            return text
 
     def _load_word(self, file_path: str) -> str:
         import docx

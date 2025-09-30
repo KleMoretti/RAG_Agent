@@ -7,6 +7,7 @@ faiss-cpu
 numpy
 scikit-learn
 PyPDF2
+PyMuPDF
 python-docx
 SpeechRecognition
 openai

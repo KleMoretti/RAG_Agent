@@ -37,7 +37,14 @@ class Preprocessor:
         if not text:
             return ""
 
-        # 统一换行和空格
+        # Fix space-separated characters (common PDF extraction issue)
+        # Match patterns like "h e l l o" and convert to "hello"
+        text = re.sub(r'\b(\w) (?=\w\b)', r'\1', text)
+        
+        # Replace multiple spaces with single space
+        text = re.sub(r' {2,}', ' ', text)
+        
+        # 统一换行和空格 (normalize line breaks and spaces)
         text = re.sub(r'\s+', ' ', text)
 
         # 清理无效字符，保留中英文和标点
