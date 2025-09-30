@@ -8,6 +8,7 @@ Also exposes a FastAPI app at /api/chat for frontend integration.
 """
 
 import os
+import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
@@ -20,6 +21,9 @@ from src.llm import LLMClient, OpenAIClient, OpenAIConfig, EchoClient
 
 # --- Tool Definitions ---
 from src.agent.tools import SearchTool, CalculatorTool
+
+# Setup basic logging
+logger = logging.getLogger(__name__)
 
 # Load environment variables from .env files (root and src/llm/.env) early
 try:
@@ -119,19 +123,22 @@ def _text_from_file(saved_path: Path, orig_filename: str, content_type: Optional
         # Use DataLoader for supported rich formats
         if ext in {'.pdf', '.docx', '.doc', '.wav', '.mp3'}:
             return loader.load(str(saved_path))
-    except Exception:
-        # Fallback to plain text read below
-        pass
+    except Exception as e:
+        # Log the error and fallback to plain text read below
+        logger.warning(f"Failed to load {ext} file with DataLoader: {e}. Falling back to plain text.")
+    
     # Plain text fallback for common text/code formats
     try:
         return saved_path.read_text(encoding='utf-8', errors='ignore')
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Failed to read file as text: {e}. Trying binary decode.")
         # Final fallback: binary decode best-effort
-        data = saved_path.read_bytes()
         try:
+            data = saved_path.read_bytes()
             return data.decode('utf-8', errors='ignore')
-        except Exception:
+        except Exception as e:
             # As a last resort, return empty
+            logger.error(f"Failed to extract any text from file {saved_path}: {e}")
             return ""
 
 
@@ -163,9 +170,9 @@ def process_and_index_file(saved_path: Path, file_id: str, orig_name: str, conte
                     "content": c,
                     "length": len(c),
                 }, ensure_ascii=False) + "\n")
-    except Exception:
+    except Exception as e:
         # Don't fail upload if processed save encounters an error
-        pass
+        logger.warning(f"Failed to save processed chunks to {out_jsonl}: {e}")
 
     # Build embeddings and add to persistent vector store
     if chunks:
@@ -187,9 +194,9 @@ def process_and_index_file(saved_path: Path, file_id: str, orig_name: str, conte
             store.add(vectors, metadatas)
             # Persist to disk
             store.save()
-        except Exception:
+        except Exception as e:
             # Embedding/indexing errors shouldn't fully break the upload
-            pass
+            logger.error(f"Failed to create embeddings or index vectors: {e}")
 
     # Prepare API preview chunks
     preview: List[Dict[str, Any]] = []

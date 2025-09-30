@@ -1,5 +1,5 @@
 import re
-from typing import List, Optional
+from typing import Optional
 
 
 class Preprocessor:
@@ -59,7 +59,7 @@ class Preprocessor:
 
         return text.strip()
 
-    def split_sentences(self, text: str) -> List[str]:
+    def split_sentences(self, text: str) -> list[str]:
         """
         智能分句，处理常见标点和特殊情况。
 
@@ -95,7 +95,7 @@ class Preprocessor:
 
         return [s.strip() for s in result if s.strip()]
 
-    def split_paragraphs(self, text: str, min_para_chars: int = 50) -> List[str]:
+    def split_paragraphs(self, text: str, min_para_chars: int = 50) -> list[str]:
         """
         按段落分割长文本。
 

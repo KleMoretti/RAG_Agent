@@ -1,5 +1,4 @@
 import numpy as np
-from typing import List
 from sentence_transformers import SentenceTransformer  # type: ignore
 
 class Embedder:
@@ -18,7 +17,7 @@ class Embedder:
         self.model = SentenceTransformer(model_name)
         self.dim = self.model.get_sentence_embedding_dimension()
 
-    def encode(self, texts: List[str], normalize: bool = True) -> np.ndarray:
+    def encode(self, texts: list[str], normalize: bool = True) -> np.ndarray:
         """
         将文本列表转换为向量。
 

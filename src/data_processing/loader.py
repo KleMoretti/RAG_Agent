@@ -1,6 +1,6 @@
 import os
 import hashlib
-from typing import Any, List, Tuple, Dict
+from typing import Any
 
 
 class DataLoader:
@@ -11,7 +11,7 @@ class DataLoader:
 
     SUPPORTED_EXTS = {'.pdf', '.docx', '.doc', '.wav', '.mp3'}
 
-    def load_and_split(self, file_path: str, chunk_size: int = 1000) -> List[Dict[str, Any]]:
+    def load_and_split(self, file_path: str, chunk_size: int = 1000) -> list[dict[str, Any]]:
         """
         加载文件，分块并生成元数据。
 
@@ -38,7 +38,7 @@ class DataLoader:
 
         return results
 
-    def _split_text(self, text: str, chunk_size: int) -> List[str]:
+    def _split_text(self, text: str, chunk_size: int) -> list[str]:
         """
         将文本分割为指定大小的块。
 
