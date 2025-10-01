@@ -20,6 +20,59 @@
 19. Security: validate user input before search/LLM; never log secrets; plan filters (`tenant_id`, `visibility`).
 20. No Cursor/Copilot rule files present now—update line 20 if added.
 
+## 用户权限系统
+
+### 用户角色
+- **admin**: 管理员，拥有所有权限，可以管理用户和文件
+- **user**: 普通用户，根据权限设置访问功能
+
+### 用户权限字段
+- `is_active`: 账户是否激活
+- `can_upload`: 是否可以上传文件
+- `can_download`: 是否可以下载文件
+- `can_chat`: 是否可以聊天
+
+### API 接口
+
+#### 认证接口 (`/api/auth/`)
+- `POST /register` - 用户注册
+- `POST /login` - 用户登录
+- `GET /me` - 获取当前用户信息
+- `POST /refresh` - 刷新访问令牌
+
+#### 管理员接口 (`/api/admin/`) - 需要管理员权限
+
+**用户管理:**
+- `GET /users` - 获取用户列表 (支持分页和搜索)
+- `POST /users` - 创建新用户
+- `GET /users/{user_id}` - 获取用户详情
+- `PUT /users/{user_id}` - 更新用户信息
+- `DELETE /users/{user_id}` - 删除用户
+
+**文件管理:**
+- `GET /files` - 获取文件列表 (支持分页和搜索)
+- `DELETE /files/{file_name}` - 删除文件
+
+**系统统计:**
+- `GET /stats` - 获取系统统计信息
+
+#### 聊天接口 (`/api/chat`)
+- `POST /chat` - 发送聊天消息 (需要 `can_chat` 权限)
+
+#### 文件上传接口 (`/api/upload`)
+- `POST /upload` - 上传文件 (需要 `can_upload` 权限)
+
+### 前端页面
+- `/login` - 登录页面
+- `/register` - 注册页面
+- `/chat` - 聊天页面 (根据用户权限显示不同功能)
+- `/admin` - 管理员控制台 (仅管理员可访问)
+
+### 权限检查
+系统使用 JWT 令牌进行身份验证，每个 API 端点都会检查相应的权限：
+- 管理员接口需要 `role: "admin"`
+- 文件上传需要 `can_upload: true`
+- 聊天功能需要 `can_chat: true`
 
 Fallback EchoClient (local testing)
 

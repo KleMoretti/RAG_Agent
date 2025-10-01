@@ -19,7 +19,15 @@ export type FileUploadResponse = {
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
 
 export type TokenResponse = { access_token: string; token_type: string }
-export type MeResponse = { id: number; username: string; role: string }
+export type MeResponse = { 
+  id: number; 
+  username: string; 
+  role: string; 
+  is_active: boolean;
+  can_upload: boolean;
+  can_download: boolean;
+  can_chat: boolean;
+}
 export type RegisterResponse = { id: number; username: string }
 
 export async function login(username: string, password: string): Promise<TokenResponse> {
@@ -98,4 +106,148 @@ export async function uploadFile(file: File): Promise<FileUploadResponse> {
     throw new Error(`Upload API error: ${res.status}`)
   }
   return res.json()
+}
+export type User = {
+  id: number;
+  username: string;
+  role: string;
+  is_active: boolean;
+  can_upload: boolean;
+  can_download: boolean;
+  can_chat: boolean;
+  created_at: string;
+  updated_at: string;
+  last_login: string | null;
+  created_by: number | null;
+  notes: string | null;
+}
+
+export type UserListResponse = {
+  users: User[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export type FileInfo = {
+  file_name: string;
+  file_size: number;
+  upload_time: string;
+  uploader: string | null;
+  file_path: string;
+}
+
+export type FileListResponse = {
+  files: FileInfo[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export type SystemStats = {
+  users: {
+    total: number;
+    active: number;
+    admins: number;
+    regular: number;
+  };
+  files: {
+    count: number;
+    total_size: number;
+    total_size_mb: number;
+  };
+}
+
+export async function getUsers(token: string, page = 1, pageSize = 10, search = ""): Promise<UserListResponse> {
+  const params = new URLSearchParams({
+    page: page.toString(),
+    page_size: pageSize.toString(),
+    ...(search && { search }),
+  });
+  
+  const res = await fetch(`${API_BASE}/api/admin/users?${params}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`Get users error: ${res.status}`);
+  return res.json();
+}
+
+export async function createUser(token: string, userData: {
+  username: string;
+  password: string;
+  role?: string;
+  can_upload?: boolean;
+  can_download?: boolean;
+  can_chat?: boolean;
+  notes?: string;
+}): Promise<User> {
+  const res = await fetch(`${API_BASE}/api/admin/users`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(userData),
+  });
+  if (!res.ok) throw new Error(`Create user error: ${res.status}`);
+  return res.json();
+}
+
+export async function updateUser(token: string, userId: number, userData: {
+  username?: string;
+  role?: string;
+  is_active?: boolean;
+  can_upload?: boolean;
+  can_download?: boolean;
+  can_chat?: boolean;
+  notes?: string;
+}): Promise<User> {
+  const res = await fetch(`${API_BASE}/api/admin/users/${userId}`, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(userData),
+  });
+  if (!res.ok) throw new Error(`Update user error: ${res.status}`);
+  return res.json();
+}
+
+export async function deleteUser(token: string, userId: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/admin/users/${userId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`Delete user error: ${res.status}`);
+}
+
+export async function getFiles(token: string, page = 1, pageSize = 10, search = ""): Promise<FileListResponse> {
+  const params = new URLSearchParams({
+    page: page.toString(),
+    page_size: pageSize.toString(),
+    ...(search && { search }),
+  });
+  
+  const res = await fetch(`${API_BASE}/api/admin/files?${params}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`Get files error: ${res.status}`);
+  return res.json();
+}
+
+export async function deleteFile(token: string, fileName: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/admin/files/${fileName}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`Delete file error: ${res.status}`);
+}
+
+export async function getSystemStats(token: string): Promise<SystemStats> {
+  const res = await fetch(`${API_BASE}/api/admin/stats`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`Get stats error: ${res.status}`);
+  return res.json();
 }

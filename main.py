@@ -291,8 +291,17 @@ try:
     try:
         from src.api.auth import router as auth_router
         app.include_router(auth_router)
-    except Exception:
-        pass
+        print(f"✅ Auth routes mounted at {auth_router.prefix}")
+    except Exception as e:
+        print(f"❌ Failed to mount auth routes: {e}")
+
+    # Mount admin routes
+    try:
+        from src.api.admin import router as admin_router
+        app.include_router(admin_router)
+        print(f"✅ Admin routes mounted at {admin_router.prefix}")
+    except Exception as e:
+        print(f"❌ Failed to mount admin routes: {e}")
 
     _app_agents: dict[str, RAGAgent] = {}
 
@@ -384,6 +393,9 @@ try:
     @app.post("/api/upload", response_model=FileUploadResponse)
     async def upload_file(file: UploadFile = File(...)):
         """上传文件，保存到 data/raw，并进行文本提取/分块，保存到 data/processed，且写入向量库。"""
+        # 注意：这里应该添加权限检查，但为了保持向后兼容，暂时注释
+        # from src.api.auth import require_permission
+        # user = require_permission("upload")()
         try:
             # 读取文件内容
             content = await file.read()

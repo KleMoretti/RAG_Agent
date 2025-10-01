@@ -149,8 +149,24 @@ export default function ChatPage() {
     <div className="flex h-[calc(100dvh-2rem)] flex-col py-4">
       {/* 顶部用户信息和登出按钮 */}
       <div className="flex justify-between items-center mb-4 px-2">
-        <div className="text-sm text-gray-600">
-          欢迎，{user?.username}
+        <div className="flex items-center space-x-4">
+          <div className="text-sm text-gray-600">
+            欢迎，{user?.username}
+            {user?.role === "admin" && (
+              <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                管理员
+              </span>
+            )}
+          </div>
+          {user?.role === "admin" && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => router.push("/admin")}
+            >
+              管理后台
+            </Button>
+          )}
         </div>
         <Button variant="outline" size="sm" onClick={logout}>
           登出
@@ -189,13 +205,15 @@ export default function ChatPage() {
         )}
         
         <div className="mt-3 flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => setShowFileUpload(!showFileUpload)}
-            className="shrink-0"
-          >
-            📁 文件
-          </Button>
+          {user?.can_upload && (
+            <Button
+              variant="outline"
+              onClick={() => setShowFileUpload(!showFileUpload)}
+              className="shrink-0"
+            >
+              📁 文件
+            </Button>
+          )}
           <Textarea
             placeholder="输入消息，Enter 发送，Shift+Enter 换行"
             value={input}
