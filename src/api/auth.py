@@ -28,6 +28,10 @@ class LoginRequest(BaseModel):
     username: constr(min_length=3, max_length=64)
     password: constr(min_length=6, max_length=64)
 
+class ChangePasswordRequest(BaseModel):
+    old_password: constr(min_length=6, max_length=64)
+    new_password: constr(min_length=6, max_length=64)
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -150,6 +154,35 @@ def refresh_token(user: User = Depends(_get_current_user)):
     """刷新访问令牌，无需重新输入密码"""
     token = create_access_token(subject=str(user.id), extra_claims={"username": user.username, "role": user.role})
     return TokenResponse(access_token=token)
+
+@router.post("/change-password")
+def change_password(req: ChangePasswordRequest, user: User = Depends(_get_current_user), db: Session = Depends(get_db)):
+    """用户更改密码"""
+    try:
+        logger.info(f"Password change attempt for user: {user.username}")
+        
+        # 验证旧密码
+        if not verify_password(req.old_password, user.hashed_password):
+            logger.warning(f"Invalid old password for user: {user.username}")
+            raise HTTPException(status_code=400, detail="当前密码不正确")
+        
+        # 检查新密码是否与旧密码相同
+        if verify_password(req.new_password, user.hashed_password):
+            logger.warning(f"New password same as old password for user: {user.username}")
+            raise HTTPException(status_code=400, detail="新密码不能与当前密码相同")
+        
+        # 更新密码
+        user.hashed_password = hash_password(req.new_password)
+        db.commit()
+        
+        logger.info(f"Password changed successfully for user: {user.username}")
+        return {"message": "密码修改成功"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Change password error for user {user.username}: {e}")
+        raise HTTPException(status_code=500, detail="密码修改失败，请稍后重试")
 
 # 权限检查函数
 def require_permission(permission: str):

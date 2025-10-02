@@ -17,6 +17,7 @@ import { useConversationsContext } from "@/lib/conversations";
 import { useAuth } from "@/lib/auth";
 import { ReasoningPanel } from "@/components/reasoning-panel";
 import { FileUpload } from "@/components/file-upload";
+import { ChangePasswordModal } from "@/components/change-password-modal";
 
 type Message = { role: "user" | "assistant"; content: string };
 const LS_MESSAGES_PREFIX = "rag_messages_";
@@ -46,6 +47,7 @@ export default function ChatPage() {
   const listRef = useRef<HTMLDivElement>(null);
   const [lastSteps, setLastSteps] = useState<APIStep[] | undefined>([]);
   const [showFileUpload, setShowFileUpload] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   // 检查认证状态
   useEffect(() => {
@@ -168,9 +170,18 @@ export default function ChatPage() {
             </Button>
           )}
         </div>
-        <Button variant="outline" size="sm" onClick={logout}>
-          登出
-        </Button>
+        <div className="flex items-center space-x-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setShowChangePassword(true)}
+          >
+            更改密码
+          </Button>
+          <Button variant="outline" size="sm" onClick={logout}>
+            登出
+          </Button>
+        </div>
       </div>
       
       {/* 消息列表，占据剩余空间，独立滚动 */}
@@ -225,6 +236,13 @@ export default function ChatPage() {
           </Button>
         </div>
       </div>
+
+      {/* 更改密码模态框 */}
+      <ChangePasswordModal
+        isOpen={showChangePassword}
+        onClose={() => setShowChangePassword(false)}
+        token={localStorage.getItem("token") || ""}
+      />
     </div>
   );
 }

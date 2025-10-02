@@ -14,8 +14,10 @@ import {
     Plus,
     Search,
     Filter,
-    MoreHorizontal
+    MoreHorizontal,
+    Edit
 } from "lucide-react";
+import { UserPermissionsModal } from "@/components/user-permissions-modal";
 
 interface User {
     id: number;
@@ -63,6 +65,8 @@ export default function AdminPage() {
     const [searchTerm, setSearchTerm] = useState("");
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
+    const [selectedUser, setSelectedUser] = useState<User | null>(null);
+    const [showUserModal, setShowUserModal] = useState(false);
 
     // 检查权限
     useEffect(() => {
@@ -205,6 +209,17 @@ export default function AdminPage() {
             console.error("Failed to update user:", error);
             alert("更新失败");
         }
+    };
+
+    // 编辑用户权限
+    const editUserPermissions = (user: User) => {
+        setSelectedUser(user);
+        setShowUserModal(true);
+    };
+
+    // 用户更新后的回调
+    const handleUserUpdated = () => {
+        fetchUsers();
     };
 
     useEffect(() => {
@@ -379,6 +394,15 @@ export default function AdminPage() {
                                                     <Button
                                                         size="sm"
                                                         variant="outline"
+                                                        onClick={() => editUserPermissions(user)}
+                                                    >
+                                                        <Edit className="h-3 w-3 mr-1" />
+                                                        编辑
+                                                    </Button>
+
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
                                                         onClick={() => toggleUserStatus(user.id, user.is_active)}
                                                     >
                                                         {user.is_active ? "禁用" : "启用"}
@@ -525,6 +549,18 @@ export default function AdminPage() {
                     </div>
                 )}
             </div>
+
+            {/* 用户权限编辑模态框 */}
+            <UserPermissionsModal
+                isOpen={showUserModal}
+                onClose={() => {
+                    setShowUserModal(false);
+                    setSelectedUser(null);
+                }}
+                user={selectedUser}
+                token={localStorage.getItem("token") || ""}
+                onUserUpdated={handleUserUpdated}
+            />
         </div>
     );
 }

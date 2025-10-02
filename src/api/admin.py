@@ -46,6 +46,9 @@ class UserUpdateRequest(BaseModel):
     can_chat: bool | None = None
     notes: str | None = None
 
+class ResetPasswordRequest(BaseModel):
+    new_password: constr(min_length=6, max_length=64)
+
 class UserResponse(BaseModel):
     id: int
     username: str
@@ -98,7 +101,7 @@ def create_user(
         # 创建用户
         user = User(
             username=req.username,
-            password_hash=hash_password(req.password),
+            hashed_password=hash_password(req.password),
             role=req.role,
             can_upload=req.can_upload,
             can_download=req.can_download,
@@ -325,6 +328,34 @@ def delete_user(
     except Exception as e:
         logger.error(f"Error deleting user {user_id}: {e}")
         raise HTTPException(status_code=500, detail="删除用户失败")
+
+@router.post("/users/{user_id}/reset-password")
+def reset_user_password(
+    user_id: int,
+    req: ResetPasswordRequest,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin)
+):
+    """管理员重置用户密码"""
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="用户不存在")
+        
+        # 更新密码
+        user.hashed_password = hash_password(req.new_password)
+        user.updated_at = datetime.utcnow()
+        
+        db.commit()
+        
+        logger.info(f"Password reset for user {user_id} by admin {admin.username}")
+        return {"message": "密码重置成功"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error resetting password for user {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="密码重置失败")
 
 # 文件管理API
 @router.get("/files", response_model=FileListResponse)

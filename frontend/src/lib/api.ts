@@ -251,3 +251,40 @@ export async function getSystemStats(token: string): Promise<SystemStats> {
   if (!res.ok) throw new Error(`Get stats error: ${res.status}`);
   return res.json();
 }
+
+// 用户更改密码
+export async function changePassword(token: string, oldPassword: string, newPassword: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/auth/change-password`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      old_password: oldPassword,
+      new_password: newPassword,
+    }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || `Change password error: ${res.status}`);
+  }
+}
+
+// 管理员重置用户密码
+export async function resetUserPassword(token: string, userId: number, newPassword: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/admin/users/${userId}/reset-password`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      new_password: newPassword,
+    }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || `Reset password error: ${res.status}`);
+  }
+}
