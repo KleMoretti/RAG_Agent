@@ -239,9 +239,23 @@ class AcademicRAGBuilder:
                 continue
             
             try:
-                self._process_single_file(file_path)
-                self.stats['processed_files'] += 1
-                
+                ok = self._process_single_file(file_path)
+                if ok:
+                    self.stats['processed_files'] += 1
+                    processed_files.add(str(file_path))
+                else:
+                    # 空内容/无法提取文本，跳过但不计为异常
+                    self.stats['failed_files'] += 1
+                    hint = '空内容或无法提取文本，已跳过'
+                    if file_path.suffix.lower() == '.pdf':
+                        hint += '（可能为扫描版或不可选文本PDF，建议使用OCR识别后再导入）'
+                    self.stats['failed_file_details'].append({
+                        'file': str(file_path),
+                        'error': hint,
+                        'timestamp': datetime.now().isoformat()
+                    })
+                    logging.warning(f"跳过空内容文件: {file_path} - {hint}")
+
             except Exception as e:
                 self.stats['failed_files'] += 1
                 error_info = {
@@ -261,26 +275,31 @@ class AcademicRAGBuilder:
         
         return self.stats
 
-    def _process_single_file(self, file_path: Path):
+    def _process_single_file(self, file_path: Path) -> bool:
         """处理单个文件"""
         logging.info(f"开始处理文件: {file_path}")
         
         # 1. 加载文件
         content = self.loader.load(str(file_path))
-        if not content.strip():
-            raise ValueError("文件内容为空")
+        if not content or not content.strip():
+            # 允许跳过空内容文件
+            return False
         
         # 2. 预处理文本
         cleaned_text = self.preprocessor.clean_text(content)
-        
+        if not cleaned_text.strip():
+            return False
+
         # 3. 保存处理后的文本
         processed_file = self.processed_dir / f"{file_path.stem}.txt"
+        # 若文件已存在：覆盖写入，避免旧内容干扰
         processed_file.write_text(cleaned_text, encoding='utf-8')
         
         # 4. 使用Indexer进行分块、嵌入和索引
         chunk_ids = self.indexer.index_file(processed_file, file_id=str(file_path))
         
         logging.info(f"文件 {file_path.name} 处理完成，生成 {len(chunk_ids)} 个块")
+        return True
 
     def search(self, query: str, top_k: int = 5, include_metadata: bool = True) -> List[Dict[str, Any]]:
         """搜索相关文档块"""

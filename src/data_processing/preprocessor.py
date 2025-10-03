@@ -65,8 +65,8 @@ class Preprocessor:
         if not text:
             return []
 
-        # 分句标记
-        delimiters = r'([。！？])["\'\]]?[\s\n]*'
+        # 分句标记（中英文标点）
+        delimiters = r'([。！？.!?])["\'\]]?[\s\n]*'
         sentences = re.split(delimiters, text)
 
         # 组合分句结果
@@ -74,7 +74,7 @@ class Preprocessor:
         buffer = []
 
         for s in sentences:
-            if s in '。！？':
+            if s in '。！？.!?':
                 buffer.append(s)
                 if len(''.join(buffer)) >= self.min_chars:
                     result.append(''.join(buffer))

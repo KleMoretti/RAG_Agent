@@ -49,8 +49,9 @@ class VectorStore:
             with tmp_meta.open("w", encoding="utf-8") as f:
                 for m in self._metadatas:
                     f.write(json.dumps(m, ensure_ascii=False) + "\n")
-            tmp_index.rename(self.index_path)
-            tmp_meta.rename(self.metadata_path)
+            # 使用 replace 以在 Windows 上原子替换已存在文件，避免 FileExistsError
+            tmp_index.replace(self.index_path)
+            tmp_meta.replace(self.metadata_path)
 
     def load(self) -> None:
         """从磁盘加载 index + metadata 并校验条数一致。"""

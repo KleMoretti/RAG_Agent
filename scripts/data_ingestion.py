@@ -165,10 +165,26 @@ class DataIngestion:
                 content = self.loader.load(str(file_path))
                 logging.info(f"成功加载文件: {file_path}")
 
+                # 跳过空内容并给出 OCR 提示
+                if not content or not content.strip():
+                    self.process_stats['failed_files'].append(str(file_path))
+                    hint = "空内容或无法提取文本，已跳过"
+                    if file_path.suffix.lower() == '.pdf':
+                        hint += "（可能为扫描版或不可选文本PDF，建议使用OCR识别后再导入）"
+                    logging.warning(f"跳过空内容文件: {file_path} - {hint}")
+                    continue
+
                 # 2. 预处理文本
                 cleaned_text = self.preprocessor.clean_text(content)
+                if not cleaned_text.strip():
+                    self.process_stats['failed_files'].append(str(file_path))
+                    hint = "清洗后仍为空，已跳过"
+                    if file_path.suffix.lower() == '.pdf':
+                        hint += "（可能为不可选文本PDF，建议进行OCR）"
+                    logging.warning(f"跳过清洗后仍为空的文件: {file_path} - {hint}")
+                    continue
 
-                # 保存处理后的文本
+                # 保存处理后的文本（覆盖写入）
                 processed_file = self.processed_dir / f"{file_path.stem}.txt"
                 processed_file.write_text(cleaned_text, encoding='utf-8')
 
@@ -179,6 +195,7 @@ class DataIngestion:
                 chunk_count = len(chunk_ids)
                 self.process_stats['total_chunks'] += chunk_count
                 self.process_stats['success_files'].append(str(file_path))
+                processed_files.add(str(file_path))
                 
                 logging.info(f"成功处理文件: {file_path}, 生成 {chunk_count} 个块")
 
