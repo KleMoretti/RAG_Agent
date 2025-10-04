@@ -13,7 +13,7 @@ from datetime import datetime
 from .models import SteelEntityType, SteelRelationType
 from .builder import SteelKnowledgeGraphBuilder
 from .query import SteelKnowledgeGraphQuery
-from ..api.security import get_current_user
+from ..api.auth import _get_current_user as get_current_user
 from ..api.models import User
 
 logger = logging.getLogger(__name__)
