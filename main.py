@@ -268,6 +268,29 @@ try:
         allow_headers=["*"],
     )
 
+    # 添加全局异常处理器
+    @app.exception_handler(Exception)
+    async def global_exception_handler(request, exc):
+        import traceback
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        logger.error(f"Global exception: {exc}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        
+        return {"error": "Internal server error", "detail": str(exc)}
+
+    # 健康检查端点
+    @app.get("/health")
+    async def health_check():
+        try:
+            # 检查数据库连接
+            from src.api.db import get_db
+            next(get_db())
+            return {"status": "healthy", "database": "connected"}
+        except Exception as e:
+            return {"status": "unhealthy", "error": str(e)}
+
     class ChatRequest(BaseModel):
         message: str
         session_id: str | None = None
@@ -302,6 +325,14 @@ try:
         print(f"✅ Admin routes mounted at {admin_router.prefix}")
     except Exception as e:
         print(f"❌ Failed to mount admin routes: {e}")
+
+    # Mount prompt management routes
+    try:
+        from src.prompt_management.router import router as prompt_router
+        app.include_router(prompt_router)
+        print(f"✅ Prompt management routes mounted at {prompt_router.prefix}")
+    except Exception as e:
+        print(f"❌ Failed to mount prompt management routes: {e}")
 
     _app_agents: dict[str, RAGAgent] = {}
 
@@ -531,6 +562,61 @@ try:
             "response": result.get("response", ""),
             "reasoning_steps": steps,
         }
+
+    # Simple agents endpoint for testing frontend integration
+    @app.get("/api/agents")
+    def get_agents():
+        """获取可用的Agent列表 - 简化版本用于测试"""
+        return [
+            {
+                "id": 1,
+                "name": "RAG智能助手",
+                "displayName": "RAG智能助手", 
+                "agentType": "rag_agent",
+                "description": "基于检索增强生成的智能问答助手，能够结合文档内容回答问题",
+                "capabilities": ["文档检索", "智能问答", "上下文理解"],
+                "isActive": True,
+                "iconComponent": "MessageSquare",
+                "colorClass": "text-blue-600",
+                "useCases": [
+                    "根据上传的文档回答问题",
+                    "提供基于知识库的建议",
+                    "分析文档内容并总结要点"
+                ]
+            },
+            {
+                "id": 2,
+                "name": "钢铁生产顾问",
+                "displayName": "钢铁生产顾问",
+                "agentType": "production_agent", 
+                "description": "专业的钢铁生产工艺顾问，提供生产优化建议",
+                "capabilities": ["生产工艺分析", "质量控制", "成本优化"],
+                "isActive": True,
+                "iconComponent": "Factory",
+                "colorClass": "text-orange-600",
+                "useCases": [
+                    "分析生产工艺参数",
+                    "提供质量改进建议", 
+                    "优化生产成本"
+                ]
+            },
+            {
+                "id": 3,
+                "name": "市场分析师",
+                "displayName": "市场分析师",
+                "agentType": "market_agent",
+                "description": "钢铁市场趋势分析和价格预测专家",
+                "capabilities": ["市场分析", "价格预测", "趋势识别"],
+                "isActive": True,
+                "iconComponent": "TrendingUp",
+                "colorClass": "text-green-600",
+                "useCases": [
+                    "分析市场价格趋势",
+                    "预测原材料价格",
+                    "提供采购建议"
+                ]
+            }
+        ]
 except Exception:
     # FastAPI not installed or import error; CLI remains usable
     app = None  # type: ignore

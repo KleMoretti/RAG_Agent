@@ -16,6 +16,8 @@ from sqlalchemy import text
 from src.api.db import SessionLocal, engine, Base
 from src.api.models import User, UserRole
 from src.api.security import hash_password
+# 导入prompt管理模型，确保新表被包含在重置中
+import src.prompt_management
 import logging
 
 # 设置日志

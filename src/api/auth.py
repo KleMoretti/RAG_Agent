@@ -207,4 +207,7 @@ def require_admin(user: User = Depends(_get_current_user)) -> User:
         raise HTTPException(status_code=403, detail="需要管理员权限")
     return user
 
+# 为了兼容性，提供不带下划线的别名
+get_current_user = _get_current_user
+
 

@@ -1,0 +1,87 @@
+"use client";
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuthStore } from '@/store/authStore';
+import { ROUTES } from '@/lib/constants';
+
+interface AuthGuardProps {
+  children: React.ReactNode;
+  requireAuth?: boolean;
+  redirectTo?: string;
+}
+
+/**
+ * Authentication guard component
+ * Handles client-side authentication state validation
+ */
+export function AuthGuard({ 
+  children, 
+  requireAuth = true, 
+  redirectTo = ROUTES.LOGIN 
+}: AuthGuardProps) {
+  const router = useRouter();
+  const { isAuthenticated, token, logout } = useAuthStore();
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        // If authentication is required but user is not authenticated
+        if (requireAuth && !isAuthenticated) {
+          router.push(redirectTo);
+          return;
+        }
+
+        // If user is authenticated but shouldn't be (e.g., on login page)
+        if (!requireAuth && isAuthenticated) {
+          router.push(ROUTES.DASHBOARD);
+          return;
+        }
+
+        // If user is authenticated, verify token validity by making a test API call
+        if (requireAuth && isAuthenticated && token) {
+          try {
+            // Make a simple API call to verify token validity using the backend endpoint
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/me`, {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+              },
+            });
+
+            if (!response.ok) {
+              // Token is invalid, logout and redirect
+              console.error('Token validation failed with status:', response.status);
+              logout();
+              router.push(redirectTo);
+              return;
+            }
+          } catch (error) {
+            console.error('Token validation failed:', error);
+            logout();
+            router.push(redirectTo);
+            return;
+          }
+        }
+
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Auth check failed:', error);
+        setIsLoading(false);
+      }
+    };
+
+    checkAuth();
+  }, [isAuthenticated, token, requireAuth, redirectTo, router, logout]);
+
+  // Show loading state while checking authentication
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}

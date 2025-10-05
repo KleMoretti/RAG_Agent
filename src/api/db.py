@@ -18,7 +18,23 @@ def _create_engine_url() -> str:
 
 
 engine = create_engine(
-    _create_engine_url(), pool_pre_ping=True, pool_recycle=3600, echo=False
+    _create_engine_url(), 
+    pool_pre_ping=True,  # 连接前检查连接是否有效
+    pool_recycle=3600,   # 1小时后回收连接
+    echo=False,
+    # 连接池配置
+    pool_size=10,        # 连接池大小
+    max_overflow=20,     # 最大溢出连接数
+    pool_timeout=30,     # 获取连接的超时时间
+    # 连接参数
+    connect_args={
+        "charset": "utf8mb4",
+        "autocommit": False,
+        # 连接超时设置
+        "connect_timeout": 10,
+        "read_timeout": 30,
+        "write_timeout": 30,
+    }
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

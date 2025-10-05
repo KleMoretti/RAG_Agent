@@ -6,6 +6,8 @@ from sqlalchemy.engine import make_url
 database_url="mysql+pymysql://root:123456@127.0.0.1:3306/rag_agent"
 from src.api.db import Base
 import src.api.models  # 确保模型被导入到 Base.metadata
+# 导入prompt管理模型，确保新表被创建
+import src.prompt_management
 
 def main() -> None:
     url = make_url(database_url)

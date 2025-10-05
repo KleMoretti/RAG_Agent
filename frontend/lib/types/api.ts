@@ -1,0 +1,114 @@
+/**
+ * Common API response types
+ */
+
+export interface ApiResponse<T = unknown> {
+  success: boolean;
+  data?: T;
+  message?: string;
+  error?: string;
+}
+
+/**
+ * Chat message interface
+ */
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+  reasoningSteps?: ReasoningStep[];
+  sources?: DocumentSource[];
+}
+
+/**
+ * Reasoning step from Agent
+ */
+export interface ReasoningStep {
+  thought: string;
+  toolName?: string;
+  toolInput?: Record<string, unknown>;
+  observation?: string;
+}
+
+/**
+ * Document source citation
+ */
+export interface DocumentSource {
+  fileId: string;
+  fileName: string;
+  chunkId: number;
+  content: string;
+  relevanceScore: number;
+}
+
+/**
+ * Chat request payload
+ */
+export interface ChatRequest {
+  message: string;
+  sessionId?: string;
+  agentId?: string;
+}
+
+/**
+ * Chat response payload
+ */
+export interface ChatResponse {
+  response: string;
+  reasoningSteps?: ReasoningStep[];
+}
+
+/**
+ * File upload response
+ */
+export interface FileUploadResponse {
+  success: boolean;
+  message: string;
+  fileId?: string;
+  fileName?: string;
+  fileSize?: number;
+  contentType?: string;
+  chunks?: DocumentChunk[];
+  rawPath?: string;
+  processedPath?: string;
+}
+
+/**
+ * Document chunk
+ */
+export interface DocumentChunk {
+  content: string;
+  type: string;
+  length: number;
+}
+
+/**
+ * Pagination metadata
+ */
+export interface PaginationMeta {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+/**
+ * Paginated response
+ */
+export interface PaginatedResponse<T> {
+  data: T[];
+  meta: PaginationMeta;
+}
+
+// Re-export simplified Prompt Management types for convenience
+export type {
+  Agent,
+  SystemPrompt,
+  AgentResponse,
+  PaginatedAgentsResponse,
+  ListAgentsParams,
+  AgentWithMetadata,
+  SimplifiedPromptState,
+  SimplifiedPromptActions,
+} from './prompt';
