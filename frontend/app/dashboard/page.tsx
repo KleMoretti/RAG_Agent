@@ -19,8 +19,10 @@ import { useChatStore } from "@/store/chatStore";
 import { usePromptStore } from "@/store/promptStore";
 import { usePresetQuestionsStore } from "@/store/presetQuestionsStore";
 import { sendMessage } from "@/lib/api/chat";
+import { uploadChatFile } from "@/lib/api/files";
 import { useTranslation } from "@/lib/hooks/useTranslation";
-import type { ChatMessage } from "@/lib/types/api";
+import type { ChatAttachment, ChatMessage } from "@/lib/types/api";
+import { MAX_FILE_SIZE, SUPPORTED_FILE_TYPES } from "@/lib/constants";
 import type { AgentWithMetadata } from "@/lib/types/prompt";
 import {
   Loader2,
@@ -34,6 +36,7 @@ import {
   ArrowUp,
   ShieldCheck,
   Zap,
+  FileText,
 } from "lucide-react";
 
 // 默认图标映射（用于向后兼容）
@@ -44,6 +47,29 @@ const defaultIcons: Record<string, React.ElementType> = {
   market: TrendingUp,
   quality: ShieldCheck,
   environment: Zap,
+};
+
+const SUPPORTED_EXTENSIONS = Object.values(SUPPORTED_FILE_TYPES).reduce<
+  string[]
+>((acc, group) => acc.concat(group), []);
+
+const ACCEPTED_FILE_TYPES = SUPPORTED_EXTENSIONS.join(",");
+
+const formatFileSize = (size?: number) => {
+  if (!size) {
+    return "0 B";
+  }
+  const units = ["B", "KB", "MB", "GB"];
+  let value = size;
+  let unitIndex = 0;
+
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+
+  const precision = value >= 10 || unitIndex === 0 ? 0 : 1;
+  return `${value.toFixed(precision)} ${units[unitIndex]}`;
 };
 
 // 获取Agent图标
@@ -343,6 +369,9 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const {
     selectedAgent,
@@ -429,6 +458,19 @@ export default function DashboardPage() {
 
   const AgentIcon = currentAgent.icon;
 
+  const getMessageAgentInfo = () =>
+    currentAgentData
+      ? {
+          name: currentAgentData.displayName || currentAgentData.name,
+          icon: getAgentIconName(currentAgentData),
+          colorScheme: currentAgentData.colorScheme,
+        }
+      : {
+          name: currentAgent.name,
+          icon: selectedAgent,
+          colorScheme: currentAgent.colorScheme,
+        };
+
   // Get current session messages
   const currentSession = sessions.find((s) => s.id === currentSessionId);
   const messages = React.useMemo(
@@ -477,6 +519,104 @@ export default function DashboardPage() {
     setSelectedAgentData,
   ]);
 
+  const handleUploadClick = () => {
+    if (isLoading || isUploading) {
+      return;
+    }
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    const extension = file.name.includes(".")
+      ? `.${file.name.split(".").pop()?.toLowerCase() || ""}`
+      : "";
+    if (
+      SUPPORTED_EXTENSIONS.length > 0 &&
+      extension &&
+      !SUPPORTED_EXTENSIONS.includes(extension)
+    ) {
+      setError(t.chat.uploadUnsupported);
+      input.value = "";
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      setError(t.chat.uploadTooLarge);
+      input.value = "";
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadProgress(0);
+    setError("");
+
+    try {
+      const response = await uploadChatFile(file, (progressEvent) => {
+        if (!progressEvent.total) {
+          return;
+        }
+        const percent = Math.round(
+          (progressEvent.loaded / progressEvent.total) * 100
+        );
+        setUploadProgress(percent);
+      });
+
+      if (!response.success) {
+        throw new Error(response.message || t.chat.uploadFailed);
+      }
+
+      const attachment: ChatAttachment = {
+        fileId: response.fileId || `upload_${Date.now()}`,
+        fileName: response.fileName || file.name,
+        fileSize: response.fileSize ?? file.size,
+        contentType: response.contentType || file.type,
+        chunks: response.chunks,
+        rawPath: response.rawPath,
+        processedPath: response.processedPath,
+        uploadedAt: new Date(),
+      };
+
+      const sessionId =
+        currentSessionId || createSession(`${currentAgent.name}对话`);
+      const agentInfo = getMessageAgentInfo();
+      const template = t.chat.uploadSuccessMessage || t.chat.uploadSuccess;
+      const content = template.includes("%s")
+        ? template.replace("%s", attachment.fileName)
+        : `${template} ${attachment.fileName}`;
+
+      const uploadMessage: ChatMessage = {
+        id: `msg_${Date.now()}_upload`,
+        role: "user",
+        content,
+        timestamp: new Date(),
+        agentId: selectedAgent,
+        agentInfo,
+        attachments: [attachment],
+      };
+
+      addMessage(sessionId, uploadMessage);
+    } catch (err) {
+      console.error("File upload failed:", err);
+      const serverMessage = (
+        err as { response?: { data?: { message?: string } } }
+      ).response?.data?.message;
+      const fallback = err instanceof Error ? err.message : undefined;
+      setError(serverMessage || fallback || t.chat.uploadFailed);
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+      input.value = "";
+    }
+  };
+
   const handleSend = async () => {
     if (!inputValue.trim() || isLoading) return;
 
@@ -485,17 +625,7 @@ export default function DashboardPage() {
       currentSessionId || createSession(`${currentAgent.name}对话`);
 
     // 准备Agent信息用于存储在消息中
-    const agentInfo = currentAgentData
-      ? {
-          name: currentAgentData.displayName || currentAgentData.name,
-          icon: getAgentIconName(currentAgentData),
-          colorScheme: currentAgentData.colorScheme,
-        }
-      : {
-          name: currentAgent.name,
-          icon: selectedAgent,
-          colorScheme: currentAgent.colorScheme,
-        };
+    const agentInfo = getMessageAgentInfo();
 
     const userMsg: ChatMessage = {
       id: `msg_${Date.now()}_user`,
@@ -750,6 +880,91 @@ export default function DashboardPage() {
                       >
                         {message.content}
                       </ReactMarkdown>
+                      {message.attachments?.length ? (
+                        <div className="mt-2 space-y-2 border-t border-border/40 pt-2">
+                          {message.attachments.map((attachment) => (
+                            <div
+                              key={`${attachment.fileId}-${attachment.fileName}`}
+                              className={cn(
+                                "rounded-lg border border-border/50 p-2 text-xs",
+                                isUserMessage
+                                  ? "bg-white/10 text-primary-foreground"
+                                  : "bg-background/70 text-muted-foreground"
+                              )}
+                            >
+                              <div className="flex items-center gap-2">
+                                <FileText
+                                  className={cn(
+                                    "h-4 w-4",
+                                    isUserMessage
+                                      ? "text-primary-foreground"
+                                      : "text-primary"
+                                  )}
+                                />
+                                <div className="min-w-0">
+                                  <p
+                                    className={cn(
+                                      "truncate font-medium",
+                                      isUserMessage
+                                        ? "text-primary-foreground"
+                                        : "text-foreground"
+                                    )}
+                                  >
+                                    {attachment.fileName}
+                                  </p>
+                                  <p
+                                    className={cn(
+                                      "text-[11px]",
+                                      isUserMessage
+                                        ? "text-white/80"
+                                        : "text-muted-foreground"
+                                    )}
+                                  >
+                                    {formatFileSize(attachment.fileSize)} ·{" "}
+                                    {attachment.contentType || "unknown"}
+                                  </p>
+                                </div>
+                              </div>
+                              {attachment.chunks?.length ? (
+                                <details
+                                  className={cn(
+                                    "mt-2 text-[11px]",
+                                    isUserMessage
+                                      ? "text-primary-foreground"
+                                      : "text-muted-foreground"
+                                  )}
+                                >
+                                  <summary className="cursor-pointer select-none">
+                                    {`${t.chat.uploadPreview} (${attachment.chunks.length})`}
+                                  </summary>
+                                  <ul className="mt-1 space-y-1">
+                                    {attachment.chunks
+                                      .slice(0, 3)
+                                      .map((chunk, index) => (
+                                        <li
+                                          key={`${attachment.fileId}-${index}`}
+                                          className={cn(
+                                            "rounded-md px-2 py-1 leading-snug",
+                                            isUserMessage
+                                              ? "bg-white/10 text-primary-foreground"
+                                              : "bg-muted/60 text-muted-foreground"
+                                          )}
+                                        >
+                                          {chunk.content.length > 160
+                                            ? `${chunk.content.slice(
+                                                0,
+                                                160
+                                              )}...`
+                                            : chunk.content}
+                                        </li>
+                                      ))}
+                                  </ul>
+                                </details>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
 
                     {message.role === "user" && (
@@ -817,16 +1032,36 @@ export default function DashboardPage() {
               disabled={isLoading}
             />
 
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={ACCEPTED_FILE_TYPES}
+              className="hidden"
+              onChange={handleFileChange}
+            />
+
             {/* Bottom row with buttons and disclaimer inside InputGroup */}
             <InputGroupAddon align="block-end">
               <div className="flex items-center justify-between w-full">
                 {/* Left side - Upload button */}
                 <button
-                  className="flex items-center justify-center w-8 h-8 rounded-full border border-border hover:bg-accent transition-colors"
-                  title="上传文件"
-                  disabled={isLoading}
+                  className="flex items-center justify-center w-8 h-8 rounded-full border border-border hover:bg-accent transition-colors disabled:opacity-60"
+                  title={
+                    isUploading
+                      ? `${t.chat.uploading}${
+                          uploadProgress ? ` (${uploadProgress}%)` : ""
+                        }`
+                      : t.chat.upload
+                  }
+                  onClick={handleUploadClick}
+                  disabled={isLoading || isUploading}
+                  aria-busy={isUploading}
                 >
-                  <Plus className="w-4 h-4 text-muted-foreground" />
+                  {isUploading ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                  ) : (
+                    <Plus className="w-4 h-4 text-muted-foreground" />
+                  )}
                 </button>
 
                 {/* Center - Disclaimer */}

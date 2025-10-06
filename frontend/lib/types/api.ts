@@ -12,6 +12,17 @@ export interface ApiResponse<T = unknown> {
 /**
  * Chat message interface
  */
+export interface ChatAttachment {
+  fileId: string;
+  fileName: string;
+  fileSize?: number;
+  contentType?: string;
+  chunks?: DocumentChunk[];
+  rawPath?: string;
+  processedPath?: string;
+  uploadedAt?: Date;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -19,6 +30,7 @@ export interface ChatMessage {
   timestamp: Date;
   reasoningSteps?: ReasoningStep[];
   sources?: DocumentSource[];
+  attachments?: ChatAttachment[];
   agentId?: string; // Agent ID when message was sent
   agentInfo?: {
     name: string;
