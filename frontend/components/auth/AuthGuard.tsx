@@ -35,8 +35,23 @@ export function AuthGuard({
 
         // If user is authenticated but shouldn't be (e.g., on login page)
         if (!requireAuth && isAuthenticated) {
-          router.push(ROUTES.DASHBOARD);
-          return;
+          // Only redirect if we have a valid token
+          if (token) {
+            try {
+              const { authApi } = await import('@/lib/api/auth');
+              await authApi.getMeWithToken(token);
+              // Token is valid, redirect to dashboard
+              router.push(ROUTES.DASHBOARD);
+              return;
+            } catch (error) {
+              // Token is invalid, clear auth state and continue
+              console.error('Token validation failed on login page:', error);
+              logout();
+            }
+          } else {
+            // No token, clear auth state
+            logout();
+          }
         }
 
         // If user is authenticated, verify token validity by making a test API call

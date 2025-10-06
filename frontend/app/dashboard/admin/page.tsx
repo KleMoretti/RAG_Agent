@@ -174,6 +174,10 @@ function UserManagement() {
     setShowCreateDialog(false);
   };
 
+  useEffect(() => {
+    loadUsers();
+  }, [page]);
+
   const handleDeleteUser = async (userId: number) => {
     if (window.confirm('确定要删除这个用户吗？此操作不可撤销。')) {
       try {

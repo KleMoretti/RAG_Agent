@@ -44,11 +44,17 @@ export function UserEditDialog({ user, isOpen, onClose, onSave }: UserEditDialog
     if (user) {
       setFormData({
         username: user.username,
-        email: user.email,
         role: user.role,
-        isActive: user.isActive,
+        is_active: user.is_active,
+        notes: user.notes,
       });
-      setPermissions(user.permissions);
+      setPermissions({
+        canUpload: user.can_upload,
+        canChat: user.can_chat,
+        canViewMarket: false, // 这个字段在后端不存在，设为false
+        canManageEquipment: false, // 这个字段在后端不存在，设为false
+        canAccessAdmin: user.can_access_admin,
+      });
     }
   }, [user]);
 
@@ -61,13 +67,16 @@ export function UserEditDialog({ user, isOpen, onClose, onSave }: UserEditDialog
 
       const updateData = {
         username: formData.username,
-        email: formData.email,
         role: formData.role,
-        permissions,
-        isActive: formData.isActive,
+        is_active: formData.is_active,
+        can_upload: permissions.canUpload,
+        can_download: user.can_download, // 保持原有值
+        can_chat: permissions.canChat,
+        can_access_admin: permissions.canAccessAdmin,
+        notes: formData.notes || user.notes, // 使用表单中的值或原有值
       };
 
-      const updatedUser = await adminApi.updateUser(user.id, updateData);
+      const updatedUser = await adminApi.updateUser(user.id.toString(), updateData);
       onSave(updatedUser);
       onClose();
     } catch (err) {
@@ -121,13 +130,12 @@ export function UserEditDialog({ user, isOpen, onClose, onSave }: UserEditDialog
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="email">邮箱</Label>
+            <Label htmlFor="notes">备注</Label>
             <Input
-              id="email"
-              type="email"
-              value={formData.email || ""}
-              onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-              placeholder="输入邮箱地址"
+              id="notes"
+              value={user.notes || ""}
+              onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+              placeholder="输入备注信息"
             />
           </div>
 
@@ -214,12 +222,12 @@ export function UserEditDialog({ user, isOpen, onClose, onSave }: UserEditDialog
           {/* 状态设置 */}
           <div className="flex items-center space-x-2">
             <Checkbox
-              id="isActive"
-              checked={formData.isActive ?? true}
-              onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isActive: !!checked }))}
+              id="is_active"
+              checked={formData.is_active ?? true}
+              onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_active: !!checked }))}
             />
-            <Label htmlFor="isActive" className="text-sm font-normal">
-              用户状态：{formData.isActive ? '活跃' : '禁用'}
+            <Label htmlFor="is_active" className="text-sm font-normal">
+              用户状态：{formData.is_active ? '活跃' : '禁用'}
             </Label>
           </div>
         </div>

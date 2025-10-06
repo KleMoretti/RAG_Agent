@@ -47,10 +47,13 @@ export interface VocabularyEntry {
 
 export interface UpdateUserRequest {
   username?: string;
-  email?: string;
-  role?: UserRole;
-  permissions?: Partial<UserPermissions>;
-  isActive?: boolean;
+  role?: string;
+  is_active?: boolean;
+  can_upload?: boolean;
+  can_download?: boolean;
+  can_chat?: boolean;
+  can_access_admin?: boolean;
+  notes?: string;
 }
 
 export interface CreateUserRequest {
