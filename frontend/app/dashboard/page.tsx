@@ -2,6 +2,10 @@
 
 import * as React from "react";
 import { useState, useEffect, useRef } from "react";
+import ReactMarkdown from "react-markdown";
+import type { Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -10,6 +14,7 @@ import {
   InputGroupTextarea,
   InputGroupAddon,
 } from "@/components/ui/input-group";
+import { cn } from "@/lib/utils";
 import { useChatStore } from "@/store/chatStore";
 import { usePromptStore } from "@/store/promptStore";
 import { usePresetQuestionsStore } from "@/store/presetQuestionsStore";
@@ -135,6 +140,82 @@ const agentMetadata: Record<
     color: "bg-secondary",
     greeting: "您好！我是节能专家，帮助您优化能源使用和降低成本。",
   },
+};
+
+const markdownComponents: Components = {
+  p: ({ children }) => (
+    <p className="mb-2 last:mb-0 leading-relaxed break-words">{children}</p>
+  ),
+  a: ({ children, href }) => (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="font-medium text-primary underline underline-offset-4 hover:text-primary/80"
+    >
+      {children}
+    </a>
+  ),
+  ul: ({ children }) => (
+    <ul className="mb-2 last:mb-0 ml-4 list-disc space-y-1">{children}</ul>
+  ),
+  ol: ({ children }) => (
+    <ol className="mb-2 last:mb-0 ml-4 list-decimal space-y-1">{children}</ol>
+  ),
+  li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+  blockquote: ({ children }) => (
+    <blockquote className="mb-2 last:mb-0 border-l-2 border-primary/40 pl-3 italic text-muted-foreground">
+      {children}
+    </blockquote>
+  ),
+  code: ({ inline, className, children, ...props }) => {
+    if (inline) {
+      return (
+        <code
+          className={cn(
+            "rounded-md bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary",
+            className
+          )}
+          {...props}
+        >
+          {children}
+        </code>
+      );
+    }
+
+    return (
+      <code
+        className={cn(
+          "block max-w-full overflow-x-auto rounded-lg bg-muted/70 p-4 text-xs leading-relaxed text-muted-foreground",
+          className
+        )}
+        {...props}
+      >
+        {children}
+      </code>
+    );
+  },
+  pre: ({ children }) => (
+    <pre className="mb-2 last:mb-0 overflow-x-auto rounded-lg bg-muted/70 p-0">
+      {children}
+    </pre>
+  ),
+  table: ({ children }) => (
+    <div className="mb-2 last:mb-0 overflow-x-auto rounded-lg border border-border/60">
+      <table className="w-full text-left text-sm">{children}</table>
+    </div>
+  ),
+  thead: ({ children }) => (
+    <thead className="bg-muted/50 text-muted-foreground">{children}</thead>
+  ),
+  tbody: ({ children }) => (
+    <tbody className="divide-y divide-border/60">{children}</tbody>
+  ),
+  th: ({ children }) => (
+    <th className="px-3 py-2 font-medium text-muted-foreground">{children}</th>
+  ),
+  td: ({ children }) => <td className="px-3 py-2">{children}</td>,
+  hr: () => <hr className="my-4 border-border/60" />,
 };
 
 // Suggested prompts
@@ -279,11 +360,8 @@ export default function DashboardPage() {
 
   const {
     agents,
-    agentsLoading,
-    error: agentsError,
     initialized,
     initialize,
-    loadAgentPrompt, // 更新：使用loadAgentPrompt替代getAgentSystemPrompt
     currentAgentPrompt, // 添加：当前Agent的预设Prompt
     setSelectedAgent, // 添加：设置选中的Agent（带缓存）
   } = usePromptStore();
@@ -294,7 +372,6 @@ export default function DashboardPage() {
     error: questionsError,
     loadQuestionsByAgentName,
     incrementQuestionUsage,
-    getQuestionsByAgentName,
     initialize: initializeQuestions,
     initialized: questionsInitialized,
   } = usePresetQuestionsStore();
@@ -354,7 +431,10 @@ export default function DashboardPage() {
 
   // Get current session messages
   const currentSession = sessions.find((s) => s.id === currentSessionId);
-  const messages = currentSession?.messages || [];
+  const messages = React.useMemo(
+    () => currentSession?.messages ?? [],
+    [currentSession]
+  );
 
   // Auto-scroll to bottom when messages change or loading state changes
   useEffect(() => {
@@ -474,20 +554,6 @@ export default function DashboardPage() {
   };
 
   // 处理Agent选择（从建议卡片点击）
-  const handleAgentSelect = (agentId: string) => {
-    const agent = agents.find((a) => a.id === agentId);
-    if (agent) {
-      // 使用setSelectedAgent方法，它会自动处理prompt加载和缓存
-      setSelectedAgent(agent);
-
-      // 创建新会话使用选中的Agent
-      const newSessionId = createSession(
-        `${agent.displayName || agent.name}对话`,
-        agentId
-      );
-    }
-  };
-
   return (
     <div className="flex flex-1 h-full min-h-0 flex-col overflow-hidden">
       {/* 固定高度的聊天容器 */}
@@ -625,6 +691,17 @@ export default function DashboardPage() {
 
                 // 获取消息对应的图标组件
                 const MessageIcon = getIconByName(messageAgent.icon);
+                const isUserMessage = message.role === "user";
+                const userBackgroundClass =
+                  messageAgent.colorScheme?.background || "bg-primary";
+                const userTextClass =
+                  messageAgent.colorScheme?.primary ||
+                  "text-primary-foreground";
+                const userBorderClass =
+                  messageAgent.colorScheme?.border || "border-primary";
+                const assistantBackgroundClass = "bg-card";
+                const assistantTextClass = "text-card-foreground";
+                const assistantBorderClass = "border-border";
 
                 return (
                   <div
@@ -651,21 +728,28 @@ export default function DashboardPage() {
                     )}
 
                     <div
-                      className={`rounded-xl px-3 py-2 max-w-[60%] border text-sm ${
-                        message.role === "user"
-                          ? `${
-                              messageAgent.colorScheme?.background ||
-                              "bg-primary"
-                            } text-white ${
-                              messageAgent.colorScheme?.border ||
-                              "border-primary"
-                            }`
-                          : "bg-white text-gray-900 border-gray-200"
-                      }`}
+                      className={cn(
+                        "rounded-xl px-3 py-2 max-w-[60%] border text-sm space-y-2",
+                        isUserMessage
+                          ? [
+                              userBackgroundClass,
+                              userTextClass,
+                              userBorderClass,
+                            ]
+                          : [
+                              assistantBackgroundClass,
+                              assistantTextClass,
+                              assistantBorderClass,
+                            ]
+                      )}
                     >
-                      <div className="whitespace-pre-wrap">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        rehypePlugins={[rehypeRaw]}
+                        components={markdownComponents}
+                      >
                         {message.content}
-                      </div>
+                      </ReactMarkdown>
                     </div>
 
                     {message.role === "user" && (

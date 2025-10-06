@@ -1,6 +1,22 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { IBM_Plex_Sans, Michroma } from "next/font/google";
+import { cn } from "@/lib/utils";
 import { QueryProvider } from "@/components/shared/QueryProvider";
+
+const ibmPlexSans = IBM_Plex_Sans({
+  weight: ["100", "200", "300", "400", "500", "600", "700"],
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-plex-sans",
+});
+
+const michroma = Michroma({
+  weight: "400",
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-michroma",
+});
 
 export const metadata: Metadata = {
   title: "钢铁行业 AI 决策中心 | Steel Industry AI Decision Hub",
@@ -15,15 +31,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link 
-          href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,100..700;1,100..700&display=swap" 
-          rel="stylesheet" 
-        />
-      </head>
-      <body className="min-h-screen bg-background font-sans antialiased">
+      <body
+        className={cn(
+          "min-h-screen bg-background font-sans antialiased",
+          ibmPlexSans.variable,
+          michroma.variable
+        )}
+      >
         <QueryProvider>{children}</QueryProvider>
       </body>
     </html>
