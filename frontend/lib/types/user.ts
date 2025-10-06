@@ -22,17 +22,22 @@ export interface UserPermissions {
 }
 
 /**
- * User entity interface
+ * User entity interface matching backend response
  */
 export interface User {
-  id: string;
+  id: number;
   username: string;
-  email?: string;
-  role: UserRole;
-  permissions: UserPermissions;
-  isActive: boolean;
-  createdAt: string;
-  lastLogin?: string;
+  role: string;
+  is_active: boolean;
+  can_upload: boolean;
+  can_download: boolean;
+  can_chat: boolean;
+  can_access_admin: boolean;
+  created_at: string;
+  updated_at: string;
+  last_login?: string;
+  created_by?: number;
+  notes?: string;
 }
 
 /**

@@ -27,6 +27,7 @@ class User(Base):
     can_upload: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     can_download: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     can_chat: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    can_access_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
@@ -168,6 +169,30 @@ class PromptUsageStats(Base):
         Index("idx_usage_date", "usage_date"),
         Index("idx_agent_date", "agent_id", "usage_date"),
         Index("idx_prompt_date", "prompt_id", "usage_date"),
+        {'extend_existing': True}
+    )
+
+
+class Vocabulary(Base):
+    """专业词汇表"""
+    __tablename__ = "vocabulary"
+    __table_args__ = {'extend_existing': True}
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    term: Mapped[str] = mapped_column(String(128), nullable=False, index=True)  # 词汇术语
+    definition: Mapped[str] = mapped_column(Text, nullable=False)  # 定义
+    category: Mapped[str] = mapped_column(String(64), nullable=False, index=True)  # 分类
+    synonyms: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)  # 同义词
+    related_terms: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)  # 相关词汇
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+    created_by: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("user.id"), nullable=True)
+
+    # 索引
+    __table_args__ = (
+        Index("idx_term_category", "term", "category"),
         {'extend_existing': True}
     )
 

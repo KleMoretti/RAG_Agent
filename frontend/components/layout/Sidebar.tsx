@@ -50,6 +50,7 @@ import { AgentTooltip } from "@/components/shared/AgentTooltip";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { AgentWithMetadata } from "@/lib/types/prompt";
+import { UserRole } from "@/lib/types/user";
 
 // 默认图标映射（用于向后兼容）
 const defaultIcons: Record<string, any> = {
@@ -74,7 +75,11 @@ const menu = [
   // 以下页面尚未实现，暂时注释
   // { key: ROUTES.KNOWLEDGE, icon: Database, label: "知识库" },
   // { key: ROUTES.WORKFLOW, icon: Workflow, label: "工艺流程" },
-  // { key: ROUTES.ADMIN, icon: Settings, label: "系统管理" },
+];
+
+// 管理员菜单项
+const adminMenu = [
+  { key: ROUTES.ADMIN, icon: Settings, label: "系统管理" },
 ];
 
 export function AppSidebar() {
@@ -475,6 +480,33 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {/* Admin Menu - Only show for admin users */}
+        {user?.role === UserRole.ADMIN && (
+          <SidebarGroup>
+            <SidebarGroupLabel className="menu-label">🔧 系统管理</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {adminMenu.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = pathname === item.key;
+                  return (
+                    <SidebarMenuItem key={item.key}>
+                      <SidebarMenuButton
+                        onClick={() => handleMenuClick(item.key)}
+                        isActive={isActive}
+                        tooltip={item.label}
+                      >
+                        <Icon />
+                        <span>{item.label}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
 
       <SidebarFooter>

@@ -24,6 +24,8 @@ export const API_ENDPOINTS = {
   // Admin
   USERS: '/api/admin/users',
   SYSTEM_STATS: '/api/admin/stats',
+  KNOWLEDGE_FILES: '/api/admin/files',
+  VOCABULARY: '/api/admin/vocabulary',
   
   // Agent Management (Simplified)
   AGENTS: '/api/prompt-management/agents',
@@ -71,7 +73,7 @@ export const ROUTES = {
   // MARKET: '/dashboard/market',
   // KNOWLEDGE: '/dashboard/knowledge',
   // WORKFLOW: '/dashboard/workflow',
-  // ADMIN: '/dashboard/admin',
+  ADMIN: '/dashboard/admin',
 } as const;
 
 /**
