@@ -1,6 +1,8 @@
 import apiClient from './client';
 import { API_ENDPOINTS } from '../constants';
 import { LoginCredentials, RegisterData, User } from '../types/user';
+import axios from 'axios';
+import { env } from '../env';
 
 /**
  * Authentication API responses
@@ -53,6 +55,19 @@ export const authApi = {
    */
   async getMe(): Promise<User> {
     const response = await apiClient.get<User>('/api/auth/me');
+    return response.data;
+  },
+
+  /**
+   * Get current user info with specific token
+   */
+  async getMeWithToken(token: string): Promise<User> {
+    const response = await axios.get<User>(`${env.NEXT_PUBLIC_API_URL}/api/auth/me`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
     return response.data;
   },
 

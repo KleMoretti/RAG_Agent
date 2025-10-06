@@ -42,9 +42,9 @@ export function AuthGuard({
         // If user is authenticated, verify token validity by making a test API call
         if (requireAuth && isAuthenticated && token) {
           try {
-            // Use the configured apiClient instead of raw fetch for consistency
+            // Use getMeWithToken to bypass interceptor issues
             const { authApi } = await import('@/lib/api/auth');
-            await authApi.getMe();
+            await authApi.getMeWithToken(token);
           } catch (error) {
             // Token is invalid, logout and redirect
             console.error('Token validation failed:', error);

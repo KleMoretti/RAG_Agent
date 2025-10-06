@@ -57,10 +57,10 @@ export default function LoginPage() {
         password: data.password,
       });
 
-      // Step 2: Fetch user data using the token
-      const user = await authApi.getMe();
+      // Step 2: Fetch user data using the token directly
+      const user = await authApi.getMeWithToken(loginResponse.access_token);
 
-      // Store authentication state in Zustand
+      // Step 3: Complete login process
       login(user, loginResponse.access_token);
 
       // Also store token in cookie for middleware authentication
