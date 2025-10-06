@@ -27,6 +27,7 @@ interface ChatState {
   selectedAgent: string; // Currently selected AI agent (for backward compatibility)
   selectedAgentData: AgentWithMetadata | null; // 完整的Agent数据
   currentSystemPrompt: SystemPrompt | null; // 当前Agent的预设System Prompt
+  isInitialized: boolean; // 标记store是否已初始化，防止重复创建会话
 }
 
 /**
@@ -46,6 +47,7 @@ interface ChatActions {
   setSelectedAgent: (agentId: string) => void; // Set selected agent (backward compatibility)
   setSelectedAgentData: (agent: AgentWithMetadata | null, systemPrompt?: SystemPrompt | null) => void; // Set complete agent data with prompt
   updateSessionAgent: (sessionId: string, agentId: string, systemPrompt?: SystemPrompt) => void; // Update session's agent and prompt
+  initializeStore: () => void; // 初始化store，确保只创建一次默认会话
 }
 
 /**
@@ -75,6 +77,7 @@ export const useChatStore = create<ChatStore>()(
       selectedAgent: 'general', // Default to general agent (backward compatibility)
       selectedAgentData: null, // Complete agent data
       currentSystemPrompt: null, // Current agent's system prompt
+      isInitialized: false, // 标记store是否已初始化
 
       // Actions
       createSession: (title = 'New Conversation', agentId?: string, systemPrompt?: SystemPrompt) => {
@@ -213,15 +216,43 @@ export const useChatStore = create<ChatStore>()(
           ),
         }));
       },
+
+      initializeStore: () => {
+        const state = get();
+        // 只有在未初始化且没有当前会话时才创建默认会话
+        if (!state.isInitialized && !state.currentSessionId && state.sessions.length === 0) {
+          const sessionId = generateSessionId();
+          const newSession: ChatSession = {
+            id: sessionId,
+            title: '新对话',
+            messages: [],
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            agentId: state.selectedAgent,
+            systemPrompt: state.currentSystemPrompt || undefined,
+          };
+
+          set({
+            sessions: [newSession],
+            currentSessionId: sessionId,
+            isInitialized: true,
+          });
+        } else {
+          // 如果已经有会话或已初始化，只标记为已初始化
+          set({ isInitialized: true });
+        }
+      },
     }),
     {
       name: 'chat-store',
       partialize: (state) => ({
         // 持久化会话数据和选中的Agent/System Prompt
         sessions: state.sessions,
+        currentSessionId: state.currentSessionId,
         selectedAgent: state.selectedAgent,
         selectedAgentData: state.selectedAgentData,
         currentSystemPrompt: state.currentSystemPrompt,
+        isInitialized: state.isInitialized,
       }),
     }
   )

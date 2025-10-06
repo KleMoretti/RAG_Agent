@@ -137,7 +137,9 @@ export default function DashboardPage() {
     createSession, 
     addMessage,
     updateSessionTitle,
-    setSelectedAgentData // 添加：用于设置Agent和System Prompt
+    setSelectedAgentData, // 添加：用于设置Agent和System Prompt
+    initializeStore, // 添加：初始化store
+    isInitialized // 添加：检查是否已初始化
   } = useChatStore();
 
   const { 
@@ -182,12 +184,12 @@ export default function DashboardPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Create session if none exists
+  // 初始化store，确保只创建一次默认会话
   useEffect(() => {
-    if (!currentSessionId) {
-      createSession(`${currentAgent.name}对话`);
+    if (!isInitialized) {
+      initializeStore();
     }
-  }, [currentSessionId, createSession, currentAgent.name]);
+  }, [isInitialized, initializeStore]);
 
   // 当Agent变化时，应用已加载的System Prompt
   useEffect(() => {

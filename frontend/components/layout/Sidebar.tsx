@@ -87,7 +87,9 @@ export function AppSidebar() {
     currentSessionId, 
     createSession, 
     setCurrentSession, 
-    deleteSession 
+    deleteSession,
+    initializeStore,
+    isInitialized
   } = useChatStore();
   const { 
     agents, 
@@ -96,7 +98,6 @@ export function AppSidebar() {
     initialized, 
     initialize, 
     setError,
-    recordUsage,
     setSelectedAgent: setSelectedAgentWithPrompt // 重命名以避免冲突
   } = usePromptStore();
   const { user, logout } = useAuthStore();
@@ -241,6 +242,12 @@ export function AppSidebar() {
   };
 
   const handleNewChat = () => {
+    // 确保store已初始化
+    if (!isInitialized) {
+      initializeStore();
+    }
+    
+    // 创建新会话
     const sessionId = createSession();
     setCurrentSession(sessionId);
     if (pathname !== ROUTES.DASHBOARD) {

@@ -164,7 +164,7 @@ def create_agents():
                 )
                 
                 # 创建 Agent
-                agent = service.create_agent(agent_data, created_by=2)  # 使用管理员用户 ID
+                agent = service.create_agent(agent_data, created_by=1)  # 使用管理员用户 ID
                 created_agents.append(agent)
                 
                 print(f"✅ 成功创建 Agent: {agent.display_name} (ID: {agent.id})")
