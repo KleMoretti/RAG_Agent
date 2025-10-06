@@ -37,6 +37,7 @@ import {
   ShieldCheck,
   Zap,
   FileText,
+  X,
 } from "lucide-react";
 
 // 默认图标映射（用于向后兼容）
@@ -372,6 +373,12 @@ export default function DashboardPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  
+  // 新增：文件预览状态
+  const [pendingFile, setPendingFile] = useState<{
+    file: File;
+    attachment: ChatAttachment;
+  } | null>(null);
 
   const {
     selectedAgent,
@@ -584,25 +591,8 @@ export default function DashboardPage() {
         uploadedAt: new Date(),
       };
 
-      const sessionId =
-        currentSessionId || createSession(`${currentAgent.name}对话`);
-      const agentInfo = getMessageAgentInfo();
-      const template = t.chat.uploadSuccessMessage || t.chat.uploadSuccess;
-      const content = template.includes("%s")
-        ? template.replace("%s", attachment.fileName)
-        : `${template} ${attachment.fileName}`;
-
-      const uploadMessage: ChatMessage = {
-        id: `msg_${Date.now()}_upload`,
-        role: "user",
-        content,
-        timestamp: new Date(),
-        agentId: selectedAgent,
-        agentInfo,
-        attachments: [attachment],
-      };
-
-      addMessage(sessionId, uploadMessage);
+      // 修改：不立即发送消息，而是设置为待发送状态
+      setPendingFile({ file, attachment });
     } catch (err) {
       console.error("File upload failed:", err);
       const serverMessage = (
@@ -617,8 +607,13 @@ export default function DashboardPage() {
     }
   };
 
+  // 新增：移除待发送文件
+  const handleRemovePendingFile = () => {
+    setPendingFile(null);
+  };
+
   const handleSend = async () => {
-    if (!inputValue.trim() || isLoading) return;
+    if ((!inputValue.trim() && !pendingFile) || isLoading) return;
 
     const userMessage = inputValue.trim();
     const sessionId =
@@ -627,18 +622,49 @@ export default function DashboardPage() {
     // 准备Agent信息用于存储在消息中
     const agentInfo = getMessageAgentInfo();
 
-    const userMsg: ChatMessage = {
-      id: `msg_${Date.now()}_user`,
-      role: "user",
-      content: userMessage,
-      timestamp: new Date(),
-      agentId: selectedAgent,
-      agentInfo,
-    };
+    // 如果有待发送的文件，创建包含附件的消息
+    if (pendingFile) {
+      const template = t.chat.uploadSuccessMessage || t.chat.uploadSuccess;
+      const fileMessage = template.includes("%s")
+        ? template.replace("%s", pendingFile.attachment.fileName)
+        : `${template} ${pendingFile.attachment.fileName}`;
+      
+      const content = userMessage 
+        ? `${userMessage}\n\n${fileMessage}`
+        : fileMessage;
 
-    // Add user message to store
-    addMessage(sessionId, userMsg);
-    setInputValue("");
+      const userMsg: ChatMessage = {
+        id: `msg_${Date.now()}_user`,
+        role: "user",
+        content,
+        timestamp: new Date(),
+        agentId: selectedAgent,
+        agentInfo,
+        attachments: [pendingFile.attachment],
+      };
+
+      // Add user message to store
+      addMessage(sessionId, userMsg);
+      
+      // 清除待发送文件和输入内容
+      setPendingFile(null);
+      setInputValue("");
+    } else {
+      // 普通文本消息
+      const userMsg: ChatMessage = {
+        id: `msg_${Date.now()}_user`,
+        role: "user",
+        content: userMessage,
+        timestamp: new Date(),
+        agentId: selectedAgent,
+        agentInfo,
+      };
+
+      // Add user message to store
+      addMessage(sessionId, userMsg);
+      setInputValue("");
+    }
+
     setIsLoading(true);
     setError("");
 
@@ -1023,11 +1049,70 @@ export default function DashboardPage() {
       <div className="sticky bottom-0 flex-shrink-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-4 md:p-6 shadow-lg shadow-black/5">
         <div className="max-w-4xl mx-auto">
           <InputGroup>
+            {/* 文件预览区域 */}
+            {pendingFile && (
+              <div className="mb-3 p-3 bg-muted/50 rounded-lg border border-border/50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <FileText className="w-5 h-5 text-muted-foreground" />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm truncate">
+                        {pendingFile.attachment.fileName}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {formatFileSize(pendingFile.attachment.fileSize)}
+                        {pendingFile.attachment.chunks?.length && (
+                          <span className="ml-2">
+                            • {pendingFile.attachment.chunks.length} 个片段
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleRemovePendingFile}
+                    className="flex items-center justify-center w-6 h-6 rounded-full hover:bg-muted transition-colors"
+                    title="移除文件"
+                  >
+                    <X className="w-4 h-4 text-muted-foreground" />
+                  </button>
+                </div>
+                
+                {/* 文件内容预览 */}
+                {pendingFile.attachment.chunks?.length ? (
+                  <details className="mt-2 text-xs text-muted-foreground">
+                    <summary className="cursor-pointer select-none hover:text-foreground">
+                      {`${t.chat.uploadPreview} (${pendingFile.attachment.chunks.length})`}
+                    </summary>
+                    <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
+                      {pendingFile.attachment.chunks
+                        .slice(0, 3)
+                        .map((chunk, index) => (
+                          <div
+                            key={`${pendingFile.attachment.fileId}-${index}`}
+                            className="rounded-md bg-muted/60 px-2 py-1 leading-snug"
+                          >
+                            {chunk.content.length > 160
+                              ? `${chunk.content.substring(0, 160)}...`
+                              : chunk.content}
+                          </div>
+                        ))}
+                      {pendingFile.attachment.chunks.length > 3 && (
+                        <div className="text-center text-muted-foreground">
+                          ... 还有 {pendingFile.attachment.chunks.length - 3} 个片段
+                        </div>
+                      )}
+                    </div>
+                  </details>
+                ) : null}
+              </div>
+            )}
+
             <InputGroupTextarea
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask, Search or Chat..."
+              placeholder={pendingFile ? "添加消息内容（可选）..." : "Ask, Search or Chat..."}
               className="min-h-[60px] max-h-[200px] resize-none"
               disabled={isLoading}
             />
@@ -1072,12 +1157,12 @@ export default function DashboardPage() {
                 {/* Right side - Send button */}
                 <button
                   className={`flex items-center justify-center w-8 h-8 rounded-full transition-colors ${
-                    !inputValue.trim() || isLoading
+                    (!inputValue.trim() && !pendingFile) || isLoading
                       ? "bg-muted hover:bg-muted text-muted-foreground"
                       : "bg-primary hover:bg-primary/90 text-primary-foreground"
                   }`}
                   onClick={handleSend}
-                  disabled={!inputValue.trim() || isLoading}
+                  disabled={(!inputValue.trim() && !pendingFile) || isLoading}
                 >
                   {isLoading ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
