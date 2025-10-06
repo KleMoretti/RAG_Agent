@@ -51,6 +51,7 @@ export interface ReasoningStep {
   toolName?: string;
   toolInput?: Record<string, unknown>;
   observation?: string;
+    fallback_mode?: boolean; // 是否使用了降级模式（跳过RAG直接用LLM）
 }
 
 /**

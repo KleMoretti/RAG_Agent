@@ -336,6 +336,7 @@ try:
     class ChatResponse(BaseModel):
         response: str
         reasoning_steps: list[dict] | None = None
+        fallback_mode: bool = False  # 是否使用了降级模式（跳过RAG）
 
     class FileUploadResponse(BaseModel):
         success: bool
@@ -519,94 +520,133 @@ try:
             )
 
     @app.post("/api/chat", response_model=ChatResponse)
-    def chat(req: ChatRequest):
+    async def chat(req: ChatRequest):
+        import asyncio
+        import time
+        from config.settings import get_settings
+        
         agent = _get_agent(req.session_id)
+        fallback_mode = False
+        
+        # 从配置获取RAG超时时间
+        settings = get_settings()
+        rag_timeout = settings.rag_timeout_seconds
+        
+        async def rag_with_timeout():
+            """执行RAG检索和LLM调用，带超时控制"""
+            # Retrieval: search vector store for relevant chunks
+            retrieved_context = ""
+            try:
+                pre = get_preprocessor()
+                cleaned_query = pre.clean_text(req.message)
+                if cleaned_query:
+                    emb = get_embedder()
+                    vec = emb.encode([cleaned_query], normalize=True)[0]
+                    store = get_vector_store()
+                    hits = store.search(vec, top_k=5, include_metadata=True)
 
-        # Retrieval: search vector store for relevant chunks
-        retrieved_context = ""
-        try:
-            pre = get_preprocessor()
-            cleaned_query = pre.clean_text(req.message)
-            if cleaned_query:
-                emb = get_embedder()
-                vec = emb.encode([cleaned_query], normalize=True)[0]
-                store = get_vector_store()
-                hits = store.search(vec, top_k=5, include_metadata=True)
-
-                # Load chunk contents from processed JSONL if available
-                contexts: list[str] = []
-                for h in hits:
-                    file_id = h.get("file_id")
-                    chunk_id = h.get("chunk_id")
-                    if file_id is None or chunk_id is None:
-                        # Fallback to preview
-                        preview = h.get("preview")
-                        if isinstance(preview, str) and preview:
-                            contexts.append(preview)
-                        continue
-
-                    jsonl_path = PROCESSED_DIR / f"{file_id}.chunks.jsonl"
-                    try:
-                        if jsonl_path.exists():
-                            # Read only the needed line(s)
-                            with jsonl_path.open('r', encoding='utf-8') as f:
-                                for line in f:
-                                    line = line.strip()
-                                    if not line:
-                                        continue
-                                    import json as _json
-                                    try:
-                                        rec = _json.loads(line)
-                                    except Exception:
-                                        continue
-                                    if rec.get("chunk_id") == chunk_id:
-                                        content = rec.get("content")
-                                        if isinstance(content, str) and content:
-                                            contexts.append(content)
-                                        break
-                        else:
-                            # As a fallback, read from raw file and ignore precise chunking
+                    # Load chunk contents from processed JSONL if available
+                    contexts: list[str] = []
+                    for h in hits:
+                        file_id = h.get("file_id")
+                        chunk_id = h.get("chunk_id")
+                        if file_id is None or chunk_id is None:
+                            # Fallback to preview
                             preview = h.get("preview")
                             if isinstance(preview, str) and preview:
                                 contexts.append(preview)
-                    except Exception:
-                        # Do not block chat on retrieval errors
-                        prev = h.get("preview")
-                        if isinstance(prev, str) and prev:
-                            contexts.append(prev)
-
-                if contexts:
-                    # Deduplicate and limit length
-                    seen = set()
-                    uniq: list[str] = []
-                    for c in contexts:
-                        key = c[:80]
-                        if key in seen:
                             continue
-                        seen.add(key)
-                        uniq.append(c)
-                    # Build context section
-                    retrieved_context = "\n\n".join(uniq[:5])
-        except Exception:
-            # Retrieval is best-effort; continue without context on errors
-            retrieved_context = ""
 
-        # If we have retrieved context, prepend it to the user's message
-        user_message = req.message
-        if retrieved_context:
-            user_message = (
-                "请结合以下检索到的相关内容回答问题。\n\n" +
-                "【检索上下文】\n" +
-                retrieved_context +
-                "\n\n【用户问题】\n" +
-                req.message
-            )
+                        jsonl_path = PROCESSED_DIR / f"{file_id}.chunks.jsonl"
+                        try:
+                            if jsonl_path.exists():
+                                # Read only the needed line(s)
+                                with jsonl_path.open('r', encoding='utf-8') as f:
+                                    for line in f:
+                                        line = line.strip()
+                                        if not line:
+                                            continue
+                                        import json as _json
+                                        try:
+                                            rec = _json.loads(line)
+                                        except Exception:
+                                            continue
+                                        if rec.get("chunk_id") == chunk_id:
+                                            content = rec.get("content")
+                                            if isinstance(content, str) and content:
+                                                contexts.append(content)
+                                            break
+                            else:
+                                # As a fallback, read from raw file and ignore precise chunking
+                                preview = h.get("preview")
+                                if isinstance(preview, str) and preview:
+                                    contexts.append(preview)
+                        except Exception:
+                            # Do not block chat on retrieval errors
+                            prev = h.get("preview")
+                            if isinstance(prev, str) and prev:
+                                contexts.append(prev)
 
-        result = agent.run(user_message)
+                    if contexts:
+                        # Deduplicate and limit length
+                        seen = set()
+                        uniq: list[str] = []
+                        for c in contexts:
+                            key = c[:80]
+                            if key in seen:
+                                continue
+                            seen.add(key)
+                            uniq.append(c)
+                        # Build context section
+                        retrieved_context = "\n\n".join(uniq[:5])
+            except Exception:
+                # Retrieval is best-effort; continue without context on errors
+                retrieved_context = ""
+
+            # If we have retrieved context, prepend it to the user's message
+            user_message = req.message
+            if retrieved_context:
+                user_message = (
+                    "请结合以下检索到的相关内容回答问题。\n\n" +
+                    "【检索上下文】\n" +
+                    retrieved_context +
+                    "\n\n【用户问题】\n" +
+                    req.message
+                )
+
+            # Run in thread pool to avoid blocking
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(None, agent.run, user_message)
+            return result
+        
+        try:
+            # 尝试在超时时间内完成RAG检索和LLM调用
+            start_time = time.time()
+            result = await asyncio.wait_for(rag_with_timeout(), timeout=rag_timeout)
+            elapsed = time.time() - start_time
+            print(f"✅ RAG completed in {elapsed:.2f}s")
+            
+        except asyncio.TimeoutError:
+            # 超时后降级：直接使用LLM，不带RAG上下文
+            print(f"⚠️ RAG timeout after {rag_timeout}s, falling back to direct LLM")
+            fallback_mode = True
+            
+            # 直接调用LLM，不带检索上下文
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(None, agent.run, req.message)
+            
+        except Exception as e:
+            # 其他错误也降级
+            print(f"❌ RAG error: {e}, falling back to direct LLM")
+            fallback_mode = True
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(None, agent.run, req.message)
+        
         steps = _serialize_steps(result.get("reasoning_steps", []))
         return {
             "response": result.get("response", ""),
             "reasoning_steps": steps,
+            "fallback_mode": fallback_mode,
         }
 
     # Simple agents endpoint for testing frontend integration

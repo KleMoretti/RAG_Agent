@@ -8,7 +8,7 @@ import { STORAGE_KEYS } from '../constants';
  */
 const apiClient: AxiosInstance = axios.create({
   baseURL: env.NEXT_PUBLIC_API_URL,
-  timeout: 30000,
+  timeout: 60000, // 增加到60秒，给后端RAG有足够时间（25s）+ 降级LLM时间（最多35s）
   headers: {
     'Content-Type': 'application/json',
   },

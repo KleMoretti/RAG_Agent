@@ -67,7 +67,7 @@
 17. Config: only through `get_settings()`; no hardcoded secrets; `.env` ignored; add `.env.example` when new vars.
 18. Performance: batch embeddings; avoid redundant FAISS loads; consider caching frequent queries.
 19. Security: validate user input before search/LLM; never log secrets; plan filters (`tenant_id`, `visibility`).
-20. No Cursor/Copilot rule files present now—update line 20 if added.
+20. **RAG Timeout & Fallback**: RAG检索+LLM调用有25秒超时（可配置`RAG_TIMEOUT_SECONDS`），超时自动降级为直接使用LLM（不带RAG上下文），确保用户始终能获得响应。前端总超时60秒。
 21. **Documentation Updates Only**: All project documentation and standards MUST be maintained in AGENTS.md. Never create new separate documentation files (e.g., no new README files, GUIDE.md, STANDARDS.md, etc.). Update existing AGENTS.md instead.
 
 ---
@@ -715,6 +715,32 @@ frontend/
 - Receive AI streaming output via SSE or WebSocket
 - Typewriter effect display
 - Support interruption of generation
+
+#### RAG Timeout & Fallback Strategy
+**问题**: RAG检索或LLM调用可能因网络、模型响应慢等原因导致超时（30秒前端超时）
+
+**解决方案**: 智能降级机制
+- ⏱️ **后端超时**: 25秒（可通过`RAG_TIMEOUT_SECONDS`配置）
+- 🔄 **降级策略**: 超时时自动跳过RAG检索，直接使用原生LLM回答
+- 📊 **前端超时**: 60秒（给降级LLM留35秒余量）
+- 🏷️ **降级标志**: 响应中包含`fallback_mode: true`，前端可显示提示
+
+**配置方法**:
+```bash
+# .env文件
+RAG_TIMEOUT_SECONDS=25  # 默认25秒
+```
+
+**工作流程**:
+1. 用户发送消息 → 后端开始RAG检索
+2. 如果25秒内完成 → 返回带上下文的答案（`fallback_mode: false`）
+3. 如果超过25秒 → 自动降级，跳过RAG，直接用LLM（`fallback_mode: true`）
+4. 前端收到响应后，如果`fallback_mode: true`可显示："⚠️ 检索超时，已使用通用模式回答"
+
+**优势**:
+- ✅ 确保用户始终能获得响应（不会因为RAG慢导致完全失败）
+- ✅ 降级后仍有LLM的推理能力（只是缺少知识库上下文）
+- ✅ 透明化：前端可知道是否使用了降级模式
 
 ### UI/UX Design
 

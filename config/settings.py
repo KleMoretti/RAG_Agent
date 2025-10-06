@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     # LLM configuration
     llm_model: str = "gpt-4o-mini"
     llm_timeout: float = 30.0
+    
+    # RAG timeout configuration (seconds)
+    # 如果RAG检索+LLM调用超过此时间，将降级为直接使用LLM（不带RAG上下文）
+    rag_timeout_seconds: int = 25
 
     # Database (MySQL) configuration
     # Example: mysql+pymysql://user:password@localhost:3306/rag_agent?charset=utf8mb4
