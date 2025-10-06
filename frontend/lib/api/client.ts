@@ -55,6 +55,10 @@ apiClient.interceptors.response.use(
   (error) => {
     // Handle 401 Unauthorized - redirect to login
     if (error.response?.status === 401) {
+      // Check if we're already on the login page to avoid redirect loops
+      const isOnLoginPage = typeof window !== 'undefined' && 
+        (window.location.pathname === '/login' || window.location.pathname.startsWith('/login'));
+      
       // Clear auth data from localStorage
       localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
       localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
@@ -65,9 +69,13 @@ apiClient.interceptors.response.use(
         document.cookie = 'auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
       }
       
-      // Redirect to login page (client-side only)
-      if (typeof window !== 'undefined') {
-        window.location.href = '/login';
+      // Only redirect to login if not already on login page
+      // This prevents redirect loops and allows AuthGuard to handle the error gracefully
+      if (typeof window !== 'undefined' && !isOnLoginPage) {
+        // Use setTimeout to avoid interrupting the current navigation
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 100);
       }
     }
     

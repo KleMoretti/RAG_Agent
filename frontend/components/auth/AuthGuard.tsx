@@ -29,49 +29,60 @@ export function AuthGuard({
       try {
         // If authentication is required but user is not authenticated
         if (requireAuth && !isAuthenticated) {
+          setIsLoading(false);
           router.push(redirectTo);
           return;
         }
 
         // If user is authenticated but shouldn't be (e.g., on login page)
-        if (!requireAuth && isAuthenticated) {
-          // Only redirect if we have a valid token
-          if (token) {
-            try {
-              const { authApi } = await import('@/lib/api/auth');
-              await authApi.getMeWithToken(token);
-              // Token is valid, redirect to dashboard
-              router.push(ROUTES.DASHBOARD);
-              return;
-            } catch (error) {
-              // Token is invalid, clear auth state and continue
-              console.error('Token validation failed on login page:', error);
-              logout();
-            }
-          } else {
-            // No token, clear auth state
-            logout();
-          }
-        }
-
-        // If user is authenticated, verify token validity by making a test API call
-        if (requireAuth && isAuthenticated && token) {
+        if (!requireAuth && isAuthenticated && token) {
+          // On login/register pages, verify token before redirecting to dashboard
           try {
-            // Use getMeWithToken to bypass interceptor issues
             const { authApi } = await import('@/lib/api/auth');
             await authApi.getMeWithToken(token);
+            // Token is valid, redirect to dashboard
+            router.push(ROUTES.DASHBOARD);
+            return;
           } catch (error) {
-            // Token is invalid, logout and redirect
-            console.error('Token validation failed:', error);
+            // Token is invalid, clear auth state and let user stay on login page
+            // Silently handle error - this is expected for expired tokens
             logout();
-            router.push(redirectTo);
+            setIsLoading(false);
             return;
           }
         }
 
-        setIsLoading(false);
+        // If on non-auth pages and not authenticated, just finish loading
+        if (!requireAuth && !isAuthenticated) {
+          setIsLoading(false);
+          return;
+        }
+
+        // If user is authenticated and on protected pages, verify token validity
+        if (requireAuth && isAuthenticated && token) {
+          try {
+            // Use getMeWithToken to verify token is still valid
+            const { authApi } = await import('@/lib/api/auth');
+            await authApi.getMeWithToken(token);
+            setIsLoading(false);
+          } catch (error) {
+            // Token is invalid, logout and redirect to login
+            // Silently handle error - logout will clear the state
+            logout();
+            setIsLoading(false);
+            router.push(redirectTo);
+            return;
+          }
+        } else {
+          // No authentication needed or no token to verify
+          setIsLoading(false);
+        }
       } catch (error) {
         console.error('Auth check failed:', error);
+        if (requireAuth) {
+          logout();
+          router.push(redirectTo);
+        }
         setIsLoading(false);
       }
     };
