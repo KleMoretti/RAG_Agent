@@ -49,7 +49,10 @@ def reset_database():
                 can_upload=True,
                 can_download=True,
                 can_chat=True,
-                notes="默认管理员账户"
+                can_access_admin=True,  # 管理员可以访问管理面板
+                notes="默认管理员账户",
+                created_by=None,  # 系统创建，无创建者
+                last_login=None  # 初始登录时间
             )
             
             db.add(admin_user)
