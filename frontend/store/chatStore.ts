@@ -106,9 +106,24 @@ export const useChatStore = create<ChatStore>()(
         // 当切换会话时，同步Agent和System Prompt
         const session = get().sessions.find(s => s.id === sessionId);
         if (session) {
-          set({
-            selectedAgent: session.agentId || 'general',
-            currentSystemPrompt: session.systemPrompt || null,
+          // 动态导入promptStore以获取完整的Agent数据
+          import('./promptStore').then(({ usePromptStore }) => {
+            const promptStore = usePromptStore.getState();
+            const agentData = promptStore.getAgentById(session.agentId || 'general');
+            
+            set({
+              selectedAgent: session.agentId || 'general',
+              selectedAgentData: agentData || null,
+              currentSystemPrompt: session.systemPrompt || null,
+            });
+          }).catch((error) => {
+            console.error('Failed to load agent data during session switch:', error);
+            // 回退到基本设置
+            set({
+              selectedAgent: session.agentId || 'general',
+              selectedAgentData: null,
+              currentSystemPrompt: session.systemPrompt || null,
+            });
           });
         }
       },

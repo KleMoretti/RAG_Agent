@@ -372,6 +372,14 @@ try:
     except Exception as e:
         print(f"❌ Failed to mount prompt management routes: {e}")
 
+    # Mount preset questions routes
+    try:
+        from src.api.preset_questions import router as preset_questions_router
+        app.include_router(preset_questions_router)
+        print(f"✅ Preset questions routes mounted at {preset_questions_router.prefix}")
+    except Exception as e:
+        print(f"❌ Failed to mount preset questions routes: {e}")
+
     _app_agents: dict[str, RAGAgent] = {}
 
     def _get_agent(session_id: str | None) -> RAGAgent:

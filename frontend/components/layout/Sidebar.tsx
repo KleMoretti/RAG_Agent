@@ -253,8 +253,8 @@ export function AppSidebar() {
       initializeStore();
     }
     
-    // 创建新会话
-    const sessionId = createSession();
+    // 创建新会话，传递当前选中的Agent信息
+    const sessionId = createSession(undefined, selectedAgent);
     setCurrentSession(sessionId);
     if (pathname !== ROUTES.DASHBOARD) {
       router.push(ROUTES.DASHBOARD);
@@ -358,7 +358,11 @@ export function AppSidebar() {
                             "size-5 flex-shrink-0",
                             colorScheme?.primary || "text-foreground"
                           )} />
-                          <div className="flex flex-col items-start justify-center group-data-[collapsible=icon]:hidden flex-1 min-w-0">
+                          <div className={cn(
+                            "flex flex-col items-start justify-center group-data-[collapsible=icon]:hidden flex-1 min-w-0",
+                            // 当选中时，为右侧勾选标记预留空间
+                            isSelected ? "pr-2" : ""
+                          )}>
                             <span className={cn(
                               "text-sm font-medium leading-tight",
                               colorScheme?.primary || "text-foreground"
@@ -366,18 +370,22 @@ export function AppSidebar() {
                               {agent.displayName}
                             </span>
                             <span className={cn(
-                              "text-xs truncate max-w-[200px]",
+                              "text-xs truncate",
+                              // 动态调整最大宽度，选中时减少宽度为勾选标记留空间
+                              isSelected ? "max-w-[160px]" : "max-w-[200px]",
                               colorScheme?.secondary || "text-muted-foreground"
                             )}>
                               {agent.description}
                             </span>
                           </div>
                           {isSelected && (
-                          <CheckCircle2 className={cn(
-                            "ml-auto size-4 group-data-[collapsible=icon]:hidden",
-                            colorScheme?.primary || "text-foreground"
-                          )} />
-                        )}
+                            <div className="flex-shrink-0 group-data-[collapsible=icon]:hidden">
+                              <CheckCircle2 className={cn(
+                                "size-4",
+                                colorScheme?.primary || "text-foreground"
+                              )} />
+                            </div>
+                          )}
                         </div>
                       </SidebarMenuButton>
                     </SidebarMenuItem>

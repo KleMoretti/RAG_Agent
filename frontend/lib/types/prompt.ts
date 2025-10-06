@@ -94,6 +94,12 @@ export interface AgentColorScheme {
   border: string;
   hover: string;
   selected: string;
+  // 消息气泡专用颜色方案
+  bubble?: {
+    background: string;
+    text: string;
+    border: string;
+  };
 }
 
 export interface AgentWithMetadata extends Agent {

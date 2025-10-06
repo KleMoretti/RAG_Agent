@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { promptAPI } from '@/lib/api/prompt';
+import { adaptBackendAgents, isBackendAgentArray } from '@/lib/adapters/agentAdapter';
 import type { 
   Agent,
   SystemPrompt,
@@ -62,48 +63,78 @@ const agentColorSchemes = {
     secondary: 'text-blue-500',
     background: 'bg-blue-50',
     border: 'border-blue-200',
-    hover: 'hover:bg-blue-100',
+    hover: 'hover:bg-muted/50',
     selected: 'border-blue-600',
+    bubble: {
+      background: 'bg-blue-500',
+      text: 'text-white',
+      border: 'border-blue-500',
+    },
   },
   process: {
     primary: 'text-orange-600',
     secondary: 'text-orange-500',
     background: 'bg-orange-50',
     border: 'border-orange-200',
-    hover: 'hover:bg-orange-100',
+    hover: 'hover:bg-muted/50',
     selected: 'border-orange-600',
+    bubble: {
+      background: 'bg-orange-500',
+      text: 'text-white',
+      border: 'border-orange-500',
+    },
   },
   equipment: {
     primary: 'text-purple-600',
     secondary: 'text-purple-500',
     background: 'bg-purple-50',
     border: 'border-purple-200',
-    hover: 'hover:bg-purple-100',
+    hover: 'hover:bg-muted/50',
     selected: 'border-purple-600',
+    bubble: {
+      background: 'bg-purple-500',
+      text: 'text-white',
+      border: 'border-purple-500',
+    },
   },
   market: {
     primary: 'text-green-600',
     secondary: 'text-green-500',
     background: 'bg-green-50',
     border: 'border-green-200',
-    hover: 'hover:bg-green-100',
+    hover: 'hover:bg-muted/50',
     selected: 'border-green-600',
+    bubble: {
+      background: 'bg-green-500',
+      text: 'text-white',
+      border: 'border-green-500',
+    },
   },
   quality: {
     primary: 'text-red-600',
     secondary: 'text-red-500',
     background: 'bg-red-50',
     border: 'border-red-200',
-    hover: 'hover:bg-red-100',
+    hover: 'hover:bg-muted/50',
     selected: 'border-red-600',
+    bubble: {
+      background: 'bg-red-500',
+      text: 'text-white',
+      border: 'border-red-500',
+    },
   },
   environment: {
     primary: 'text-emerald-600',
     secondary: 'text-emerald-500',
     background: 'bg-emerald-50',
     border: 'border-emerald-200',
-    hover: 'hover:bg-emerald-100',
+    hover: 'hover:bg-muted/50',
     selected: 'border-emerald-600',
+    bubble: {
+      background: 'bg-emerald-500',
+      text: 'text-white',
+      border: 'border-emerald-500',
+    },
   },
 };
 
@@ -181,19 +212,28 @@ const enhanceAgentWithMetadata = (agent: Agent): AgentWithMetadata => {
   if (!metadata.colorScheme) {
     const agentNameLower = agent.name.toLowerCase();
     const categoryLower = agent.category?.toLowerCase() || '';
+    const displayName = agent.metadata?.display_name || '';
+    const displayNameLower = displayName.toLowerCase();
     
-    // 根据名称或类别进行模糊匹配
-    if (agentNameLower.includes('通用') || agentNameLower.includes('general')) {
+    // 根据名称、类别或显示名称进行模糊匹配
+    if (agentNameLower.includes('通用') || agentNameLower.includes('general') || 
+        displayNameLower.includes('通用') || categoryLower.includes('general')) {
       metadata = defaultAgentMetadata.general;
-    } else if (agentNameLower.includes('工艺') || agentNameLower.includes('process') || categoryLower.includes('process')) {
+    } else if (agentNameLower.includes('工艺') || agentNameLower.includes('process') || 
+               displayNameLower.includes('工艺') || categoryLower.includes('process')) {
       metadata = defaultAgentMetadata.process;
-    } else if (agentNameLower.includes('设备') || agentNameLower.includes('equipment') || categoryLower.includes('equipment')) {
+    } else if (agentNameLower.includes('设备') || agentNameLower.includes('equipment') || 
+               displayNameLower.includes('设备') || categoryLower.includes('equipment')) {
       metadata = defaultAgentMetadata.equipment;
-    } else if (agentNameLower.includes('市场') || agentNameLower.includes('market') || categoryLower.includes('market')) {
+    } else if (agentNameLower.includes('市场') || agentNameLower.includes('market') || 
+               displayNameLower.includes('市场') || categoryLower.includes('market')) {
       metadata = defaultAgentMetadata.market;
-    } else if (agentNameLower.includes('质量') || agentNameLower.includes('quality') || categoryLower.includes('quality')) {
+    } else if (agentNameLower.includes('质量') || agentNameLower.includes('quality') || 
+               displayNameLower.includes('质量') || categoryLower.includes('quality')) {
       metadata = defaultAgentMetadata.quality;
-    } else if (agentNameLower.includes('环境') || agentNameLower.includes('节能') || agentNameLower.includes('environment') || categoryLower.includes('environment')) {
+    } else if (agentNameLower.includes('环境') || agentNameLower.includes('节能') || 
+               agentNameLower.includes('environment') || displayNameLower.includes('节能') || 
+               displayNameLower.includes('环境') || categoryLower.includes('environment')) {
       metadata = defaultAgentMetadata.environment;
     } else {
       // 默认使用通用助手的配色
@@ -201,10 +241,13 @@ const enhanceAgentWithMetadata = (agent: Agent): AgentWithMetadata => {
     }
   }
   
+  // 使用后端的 display_name 作为显示名称，如果没有则使用元数据的 displayName
+  const finalDisplayName = agent.metadata?.display_name || metadata.displayName || agent.name;
+  
   return {
     ...agent,
     ...metadata,
-    displayName: metadata.displayName || agent.name,
+    displayName: finalDisplayName,
   };
 };
 
@@ -243,15 +286,25 @@ export const usePromptStore = create<SimplifiedPromptStore>()(
         try {
           const response = await promptAPI.getAgents({ limit: 100 });
           
-          // 后端直接返回 Agent[] 数组，不是分页格式
+          // 处理后端返回的数据
           let agents: Agent[] = [];
           
           if (Array.isArray(response)) {
-            // 直接是数组格式
-            agents = response;
+            // 检查是否为后端格式的数组
+            if (isBackendAgentArray(response)) {
+              // 使用适配器转换后端数据格式
+              agents = adaptBackendAgents(response);
+            } else {
+              // 已经是前端格式的数组
+              agents = response;
+            }
           } else if (response && response.items && Array.isArray(response.items)) {
             // 分页格式
-            agents = response.items;
+            if (isBackendAgentArray(response.items)) {
+              agents = adaptBackendAgents(response.items);
+            } else {
+              agents = response.items;
+            }
           } else {
             console.warn('Invalid response from agents API:', response);
             set({ 
@@ -262,7 +315,9 @@ export const usePromptStore = create<SimplifiedPromptStore>()(
             return;
           }
           
+          console.log('Loaded agents:', agents); // 调试日志
           const enhancedAgents = agents.map(enhanceAgentWithMetadata);
+          console.log('Enhanced agents:', enhancedAgents); // 调试日志
           set({ agents: enhancedAgents, agentsLoading: false });
         } catch (error) {
           console.error('Failed to load agents:', error);

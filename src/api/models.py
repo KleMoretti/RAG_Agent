@@ -82,6 +82,7 @@ class Agent(Base):
     # 关系
     prompts: Mapped[list["SystemPrompt"]] = relationship("SystemPrompt", back_populates="agent")
     usage_stats: Mapped[list["PromptUsageStats"]] = relationship("PromptUsageStats", back_populates="agent")
+    preset_questions: Mapped[list["AgentPresetQuestion"]] = relationship("AgentPresetQuestion", back_populates="agent")
 
 
 class SystemPrompt(Base):
@@ -169,6 +170,40 @@ class PromptUsageStats(Base):
         Index("idx_usage_date", "usage_date"),
         Index("idx_agent_date", "agent_id", "usage_date"),
         Index("idx_prompt_date", "prompt_id", "usage_date"),
+        {'extend_existing': True}
+    )
+
+
+class AgentPresetQuestion(Base):
+    """Agent预设问题模型"""
+    __tablename__ = "agent_preset_question"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    agent_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("agent.id"), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(128), nullable=False)  # 问题标题
+    question: Mapped[str] = mapped_column(Text, nullable=False)  # 问题内容
+    category: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)  # 问题分类
+    order_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # 显示顺序
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)  # 是否激活
+    usage_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)  # 使用次数
+    tags: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)  # 标签
+    difficulty_level: Mapped[str | None] = mapped_column(String(16), nullable=True)  # 难度级别: basic, intermediate, advanced
+    expected_response_type: Mapped[str | None] = mapped_column(String(32), nullable=True)  # 期望响应类型
+    meta_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # 元数据
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+    created_by: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("user.id"), nullable=True)
+
+    # 关系
+    agent: Mapped["Agent"] = relationship("Agent", back_populates="preset_questions")
+
+    # 索引
+    __table_args__ = (
+        Index("idx_agent_order", "agent_id", "order_index"),
+        Index("idx_agent_active", "agent_id", "is_active"),
+        Index("idx_category", "category"),
         {'extend_existing': True}
     )
 

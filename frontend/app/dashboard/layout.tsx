@@ -11,8 +11,8 @@ export default function DashboardLayout({
     <AuthGuard requireAuth={true}>
       <SidebarProvider>
         <AppSidebar />
-        <SidebarInset className="bg-sidebar">
-          <main className="flex-1 bg-background m-2 ml-0 rounded-xl border border-border overflow-auto">
+        <SidebarInset className="bg-sidebar h-svh overflow-hidden">
+          <main className="flex flex-col flex-1 h-full bg-background m-2 ml-0 rounded-xl border border-border overflow-hidden min-h-0">
             {children}
           </main>
         </SidebarInset>

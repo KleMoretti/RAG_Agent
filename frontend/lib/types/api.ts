@@ -19,6 +19,16 @@ export interface ChatMessage {
   timestamp: Date;
   reasoningSteps?: ReasoningStep[];
   sources?: DocumentSource[];
+  agentId?: string; // Agent ID when message was sent
+  agentInfo?: {
+    name: string;
+    icon: string; // Icon name for lookup
+    colorScheme?: {
+      background?: string;
+      primary?: string;
+      border?: string;
+    };
+  }; // Agent display info when message was sent
 }
 
 /**
