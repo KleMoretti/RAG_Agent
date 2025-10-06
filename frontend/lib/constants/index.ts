@@ -65,12 +65,13 @@ export const ROUTES = {
   LOGIN: '/login',
   REGISTER: '/register',
   DASHBOARD: '/dashboard',
-  CHAT: '/dashboard/chat',
-  EQUIPMENT: '/dashboard/equipment',
-  MARKET: '/dashboard/market',
-  KNOWLEDGE: '/dashboard/knowledge',
-  WORKFLOW: '/dashboard/workflow',
-  ADMIN: '/dashboard/admin',
+  // 以下路由对应的页面尚未实现
+  // CHAT: '/dashboard/chat',
+  // EQUIPMENT: '/dashboard/equipment',
+  // MARKET: '/dashboard/market',
+  // KNOWLEDGE: '/dashboard/knowledge',
+  // WORKFLOW: '/dashboard/workflow',
+  // ADMIN: '/dashboard/admin',
 } as const;
 
 /**

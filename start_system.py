@@ -60,10 +60,9 @@ def print_endpoints(frontend_port: int = 3000, backend_port: int = 8000):
     # 前端路由
     print("🌐 前端（Next.js）")
     print(f"  • 站点首页: {fe}")
-    print(f"  • 管理页面: {fe}/admin")
+    print(f"  • AI对话页面: {fe}/dashboard")
     print(f"  • 登录页面: {fe}/login")
-    print(f"  • 登录直达管理页: {fe}/login?next=/admin")
-    print(f"  • 聊天页面: {fe}/chat")
+    print("  • 其他页面: 知识库、工艺流程、系统管理等页面正在开发中")
     print()
 
     # 后端 API
@@ -76,8 +75,9 @@ def print_endpoints(frontend_port: int = 3000, backend_port: int = 8000):
 
     # 常见误用提示
     print("⚠️ 注意事项")
-    print(f"  • 不要访问: {fe}/api/admin （这是前端路由，非后端 API）")
-    print(f"  • 管理 API 请走: {be}/api/admin/*")
+    print(f"  • 当前主要功能: AI对话页面 ({fe}/dashboard)")
+    print(f"  • 后端管理 API: {be}/api/admin/*")
+    print(f"  • API 文档地址: {be}/docs")
     print("=" * 50)
     print()
 

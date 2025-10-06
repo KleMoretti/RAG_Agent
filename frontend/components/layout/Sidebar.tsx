@@ -71,9 +71,10 @@ const getAgentIcon = (agent: AgentWithMetadata) => {
 
 const menu = [
   { key: ROUTES.DASHBOARD, icon: Home, label: "AI 对话" },
-  { key: ROUTES.KNOWLEDGE, icon: Database, label: "知识库" },
-  { key: ROUTES.WORKFLOW, icon: Workflow, label: "工艺流程" },
-  { key: ROUTES.ADMIN, icon: Settings, label: "系统管理" },
+  // 以下页面尚未实现，暂时注释
+  // { key: ROUTES.KNOWLEDGE, icon: Database, label: "知识库" },
+  // { key: ROUTES.WORKFLOW, icon: Workflow, label: "工艺流程" },
+  // { key: ROUTES.ADMIN, icon: Settings, label: "系统管理" },
 ];
 
 export function AppSidebar() {

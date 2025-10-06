@@ -42,21 +42,11 @@ export function AuthGuard({
         // If user is authenticated, verify token validity by making a test API call
         if (requireAuth && isAuthenticated && token) {
           try {
-            // Make a simple API call to verify token validity using the backend endpoint
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/me`, {
-              headers: {
-                'Authorization': `Bearer ${token}`,
-              },
-            });
-
-            if (!response.ok) {
-              // Token is invalid, logout and redirect
-              console.error('Token validation failed with status:', response.status);
-              logout();
-              router.push(redirectTo);
-              return;
-            }
+            // Use the configured apiClient instead of raw fetch for consistency
+            const { authApi } = await import('@/lib/api/auth');
+            await authApi.getMe();
           } catch (error) {
+            // Token is invalid, logout and redirect
             console.error('Token validation failed:', error);
             logout();
             router.push(redirectTo);

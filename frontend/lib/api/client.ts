@@ -26,7 +26,8 @@ apiClient.interceptors.request.use(
       const authData = localStorage.getItem(STORAGE_KEYS.USER);
       if (authData) {
         const parsedData = JSON.parse(authData);
-        token = parsedData.state?.token || null;
+        // Zustand persist stores data directly, not in a 'state' property
+        token = parsedData.token || null;
       }
     } catch (error) {
       console.error('Failed to parse auth data from localStorage:', error);

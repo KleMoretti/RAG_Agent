@@ -260,11 +260,34 @@ try:
     import hashlib
 
     app = FastAPI(title="RAG Agent API")
+    # CORS configuration - allow specific origins for security
+    cors_origins = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000", 
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+    ]
+    
+    # Add common local network IPs (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+    # This allows other computers on the same network to access the API
+    import socket
+    try:
+        # Get local IP address
+        hostname = socket.gethostname()
+        local_ip = socket.gethostbyname(hostname)
+        if local_ip.startswith(('192.168.', '10.', '172.')):
+            cors_origins.extend([
+                f"http://{local_ip}:3000",
+                f"http://{local_ip}:3001",
+            ])
+    except Exception:
+        pass  # Ignore network detection errors
+    
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:3000", "*"],  # dev convenience; tighten in prod
+        allow_origins=cors_origins,
         allow_credentials=True,
-        allow_methods=["*"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["*"],
     )
 
@@ -290,6 +313,21 @@ try:
             return {"status": "healthy", "database": "connected"}
         except Exception as e:
             return {"status": "unhealthy", "error": str(e)}
+
+    # 调试端点 - 帮助诊断认证问题
+    @app.get("/api/debug/auth")
+    async def debug_auth(request):
+        """调试认证问题 - 显示请求头信息"""
+        headers = dict(request.headers)
+        return {
+            "message": "Auth debug info",
+            "headers": headers,
+            "cors_origins": cors_origins,
+            "authorization_header": headers.get("authorization", "NOT_FOUND"),
+            "user_agent": headers.get("user-agent", "NOT_FOUND"),
+            "origin": headers.get("origin", "NOT_FOUND"),
+            "referer": headers.get("referer", "NOT_FOUND"),
+        }
 
     class ChatRequest(BaseModel):
         message: str
