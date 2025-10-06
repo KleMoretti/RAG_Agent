@@ -6,10 +6,17 @@ import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   InputGroup,
   InputGroupTextarea,
   InputGroupAddon,
 } from "@/components/ui/input-group";
+import { FileUpload } from "@/components/shared/FileUpload";
 import { useChatStore } from "@/store/chatStore";
 import { usePromptStore } from "@/store/promptStore";
 import { usePresetQuestionsStore } from "@/store/presetQuestionsStore";
@@ -17,6 +24,7 @@ import { sendMessage } from "@/lib/api/chat";
 import { useTranslation } from "@/lib/hooks/useTranslation";
 import type { ChatMessage } from "@/lib/types/api";
 import type { AgentWithMetadata } from "@/lib/types/prompt";
+import type { FileUploadResponse } from "@/lib/types/api";
 import {
   Loader2,
   Bot,
@@ -29,6 +37,7 @@ import {
   ArrowUp,
   ShieldCheck,
   Zap,
+  Paperclip,
 } from "lucide-react";
 
 // 默认图标映射（用于向后兼容）
@@ -261,6 +270,7 @@ export default function DashboardPage() {
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>("");
+  const [showFileUpload, setShowFileUpload] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -273,6 +283,7 @@ export default function DashboardPage() {
     addMessage,
     updateSessionTitle,
     setSelectedAgentData, // 添加：用于设置Agent和System Prompt
+    addFileContext, // 添加文件上下文
     initializeStore, // 添加：初始化store
     isInitialized, // 添加：检查是否已初始化
   } = useChatStore();
@@ -485,6 +496,43 @@ export default function DashboardPage() {
         `${agent.displayName || agent.name}对话`,
         agentId
       );
+    }
+  };
+
+  // 处理文件上传成功
+  const handleFileUploadSuccess = (response: FileUploadResponse) => {
+    if (response.success && response.fileId && response.fileName) {
+      // 添加文件到当前会话的上下文
+      const sessionId = currentSessionId || createSession(`${currentAgent.name}对话`);
+      addFileContext(sessionId, response.fileId, response.fileName);
+
+      // 自动添加文件信息到聊天
+      const fileInfoMessage = `已上传文件: ${response.fileName}\n` +
+        `大小: ${(response.fileSize || 0) / 1024}KB\n` +
+        `分块: ${response.chunks?.length || 0}个\n\n` +
+        `文件内容已添加到对话上下文，您可以基于此文件内容进行提问。`;
+
+      const fileMsg: ChatMessage = {
+        id: `msg_${Date.now()}_file`,
+        role: "assistant",
+        content: fileInfoMessage,
+        timestamp: new Date(),
+        agentId: selectedAgent,
+        agentInfo: currentAgentData
+          ? {
+              name: currentAgentData.displayName || currentAgentData.name,
+              icon: getAgentIconName(currentAgentData),
+              colorScheme: currentAgentData.colorScheme,
+            }
+          : {
+              name: currentAgent.name,
+              icon: selectedAgent,
+              colorScheme: currentAgent.colorScheme,
+            },
+      };
+
+      addMessage(sessionId, fileMsg);
+      setShowFileUpload(false);
     }
   };
 
@@ -741,8 +789,9 @@ export default function DashboardPage() {
                   className="flex items-center justify-center w-8 h-8 rounded-full border border-border hover:bg-accent transition-colors"
                   title="上传文件"
                   disabled={isLoading}
+                  onClick={() => setShowFileUpload(true)}
                 >
-                  <Plus className="w-4 h-4 text-muted-foreground" />
+                  <Paperclip className="w-4 h-4 text-muted-foreground" />
                 </button>
 
                 {/* Center - Disclaimer */}
@@ -771,6 +820,20 @@ export default function DashboardPage() {
           </InputGroup>
         </div>
       </div>
+
+      {/* File Upload Dialog */}
+      <Dialog open={showFileUpload} onOpenChange={setShowFileUpload}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>上传文件到对话</DialogTitle>
+          </DialogHeader>
+          <FileUpload
+            onUploadSuccess={handleFileUploadSuccess}
+            onUploadError={(error) => setError(error)}
+            onClose={() => setShowFileUpload(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
