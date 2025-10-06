@@ -8,7 +8,6 @@ import { LoginCredentials, RegisterData, User } from '../types/user';
 interface LoginResponse {
   access_token: string;
   token_type: string;
-  user: User;
 }
 
 interface RegisterResponse {
@@ -47,6 +46,14 @@ export const authApi = {
    */
   async logout(): Promise<void> {
     await apiClient.post(API_ENDPOINTS.LOGOUT);
+  },
+
+  /**
+   * Get current user info
+   */
+  async getMe(): Promise<User> {
+    const response = await apiClient.get<User>('/api/auth/me');
+    return response.data;
   },
 
   /**

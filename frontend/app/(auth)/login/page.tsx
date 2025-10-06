@@ -51,16 +51,20 @@ export default function LoginPage() {
     setErrorMessage("");
 
     try {
-      const response = await authApi.login({
+      // Step 1: Login to get access token
+      const loginResponse = await authApi.login({
         username: data.username,
         password: data.password,
       });
 
+      // Step 2: Fetch user data using the token
+      const user = await authApi.getMe();
+
       // Store authentication state in Zustand
-      login(response.user, response.access_token);
+      login(user, loginResponse.access_token);
 
       // Also store token in cookie for middleware authentication
-      document.cookie = `auth_token=${response.access_token}; path=/; max-age=${
+      document.cookie = `auth_token=${loginResponse.access_token}; path=/; max-age=${
         60 * 60 * 24 * 7
       }`; // 7 days
 
