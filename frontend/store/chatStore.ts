@@ -14,6 +14,11 @@ export interface ChatSession {
   updatedAt: Date;
   agentId?: string; // 关联的Agent ID
   systemPrompt?: SystemPrompt; // 使用的预设System Prompt
+  fileContext?: {
+    fileId: string;
+    fileName: string;
+    uploadedAt: Date;
+  }[]; // 上传的文件上下文
 }
 
 /**
@@ -47,6 +52,7 @@ interface ChatActions {
   setSelectedAgent: (agentId: string) => void; // Set selected agent (backward compatibility)
   setSelectedAgentData: (agent: AgentWithMetadata | null, systemPrompt?: SystemPrompt | null) => void; // Set complete agent data with prompt
   updateSessionAgent: (sessionId: string, agentId: string, systemPrompt?: SystemPrompt) => void; // Update session's agent and prompt
+  addFileContext: (sessionId: string, fileId: string, fileName: string) => void; // Add file to session context
   initializeStore: () => void; // 初始化store，确保只创建一次默认会话
 }
 
@@ -225,6 +231,27 @@ export const useChatStore = create<ChatStore>()(
                   ...session,
                   agentId,
                   systemPrompt,
+                  updatedAt: new Date(),
+                }
+              : session
+          ),
+        }));
+      },
+
+      addFileContext: (sessionId, fileId, fileName) => {
+        set((state) => ({
+          sessions: state.sessions.map((session) =>
+            session.id === sessionId
+              ? {
+                  ...session,
+                  fileContext: [
+                    ...(session.fileContext || []),
+                    {
+                      fileId,
+                      fileName,
+                      uploadedAt: new Date(),
+                    },
+                  ],
                   updatedAt: new Date(),
                 }
               : session
