@@ -1,12 +1,10 @@
 ---
 # Slidev 主题
 theme: seriph
-# 背景图片
-background: https://images.unsplash.com/photo-1565008447742-97f6f38c985c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80
 # 演示文稿信息
-title: 钢铁行业AI决策中心 - RAG Agent系统
+title: CastIron 助铁 - 钢铁行业AI决策中心
 info: |
-  ## 钢铁行业AI决策中心
+  ## CastIron 助铁 | 钢铁行业AI决策中心
   基于RAG技术的智能决策支持系统
   
   融合检索增强生成与专业知识图谱
@@ -21,83 +19,192 @@ transition: slide-left
 mdc: true
 ---
 
-# CastIron 助铁 
-## 钢铁行业AI决策中心
-### RAG Agent智能决策支持系统
+<style>
+.slidev-layout {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%) !important;
+}
+</style>
 
-<div class="text-xl mb-8 text-gray-200">
-基于检索增强生成技术的垂直领域AI解决方案
-</div>
+<div class="h-full flex flex-col justify-center items-center">
+  <h1 class="text-6xl font-bold text-white mb-4 drop-shadow-2xl">CastIron 助铁</h1>
+  <h2 class="text-3xl font-semibold text-white/90 mb-2 drop-shadow-lg">钢铁行业AI决策中心</h2>
+  <h3 class="text-xl text-white/80 mb-8 drop-shadow-md">RAG Agent智能决策支持系统</h3>
 
-<div class="grid grid-cols-3 gap-8 mt-12">
-  <div class="text-center">
-    <carbon:industry class="text-4xl mb-2 text-blue-600" />
-    <div class="font-semibold">钢铁行业专精</div>
+  <div class="text-lg mb-12 text-white/90 drop-shadow-md">
+    基于检索增强生成技术的垂直领域AI解决方案
   </div>
-  <div class="text-center">
-    <carbon:ai-results class="text-4xl mb-2 text-green-600" />
-    <div class="font-semibold">RAG技术驱动</div>
-  </div>
-  <div class="text-center">
-    <carbon:decision-tree class="text-4xl mb-2 text-purple-600" />
-    <div class="font-semibold">智能决策支持</div>
-  </div>
-</div>
 
-<div @click="$slidev.nav.next" class="mt-12 py-1" hover:bg="white op-10">
-  按空格键进入下一页 <carbon:arrow-right />
+  <div class="grid grid-cols-3 gap-12 mt-8">
+    <div class="text-center bg-white/10 backdrop-blur-sm p-6 rounded-xl">
+      <carbon:industry class="text-5xl mb-3 text-white mx-auto" />
+      <div class="font-semibold text-white text-lg">钢铁行业专精</div>
+    </div>
+    <div class="text-center bg-white/10 backdrop-blur-sm p-6 rounded-xl">
+      <carbon:ai-results class="text-5xl mb-3 text-white mx-auto" />
+      <div class="font-semibold text-white text-lg">RAG技术驱动</div>
+    </div>
+    <div class="text-center bg-white/10 backdrop-blur-sm p-6 rounded-xl">
+      <carbon:decision-tree class="text-5xl mb-3 text-white mx-auto" />
+      <div class="font-semibold text-white text-lg">智能决策支持</div>
+    </div>
+  </div>
+
+  <div @click="$slidev.nav.next" class="mt-12 py-2 px-4 bg-white/20 backdrop-blur-sm rounded-lg text-white hover:bg-white/30 cursor-pointer">
+    按空格键进入下一页 <carbon:arrow-right class="inline" />
+  </div>
 </div>
 
 ---
 transition: fade-out
+background: linear-gradient(135deg, #f8fafc 0%, #e0e7ff 50%, #dbeafe 100%)
 ---
 
 # 目录
 
-<Toc maxDepth="2" columns="2" />
-
----
-
-# 作品信息
-
-<div class="grid grid-cols-2 gap-8">
-  <div>
-    <h2 class="text-2xl font-bold mb-4 text-blue-600">项目概览</h2>
-    <div class="space-y-3">
-      <div><strong>项目名称:</strong> CastIron 助铁 ｜ 钢铁行业AI决策中心</div>
-      <div><strong>技术架构:</strong> RAG Agent系统</div>
-      <div><strong>团队规模:</strong> 3人</div>
-      <div><strong>项目状态:</strong> MVP已完成</div>
+<div class="max-w-4xl mx-auto space-y-5">
+  <div class="flex items-center p-5 bg-blue-50 rounded-xl border-l-4 border-blue-500 hover:shadow-lg transition">
+    <div class="text-4xl font-bold text-blue-600 mr-6 w-16 text-center">一</div>
+    <div class="flex-1">
+      <div class="text-xl font-bold text-blue-600 mb-1">项目背景</div>
+      <div class="text-sm text-gray-600">行业现状与市场需求分析</div>
     </div>
   </div>
-  <div>
-    <h2 class="text-2xl font-bold mb-4 text-green-600">目标用户</h2>
-    <div class="grid grid-cols-2 gap-2 text-sm">
-      <div class="bg-blue-50 p-2 rounded">🏭 生产管理者</div>
-      <div class="bg-green-50 p-2 rounded">🔧 技术专家</div>
-      <div class="bg-yellow-50 p-2 rounded">💼 采购人员</div>
-      <div class="bg-purple-50 p-2 rounded">📊 市场分析师</div>
-      <div class="bg-red-50 p-2 rounded">🛠️ 设备维护</div>
-      <div class="bg-indigo-50 p-2 rounded">🌱 环保专家</div>
+  
+  <div class="flex items-center p-5 bg-green-50 rounded-xl border-l-4 border-green-500 hover:shadow-lg transition">
+    <div class="text-4xl font-bold text-green-600 mr-6 w-16 text-center">二</div>
+    <div class="flex-1">
+      <div class="text-xl font-bold text-green-600 mb-1">项目内容</div>
+      <div class="text-sm text-gray-600">系统功能与技术架构设计</div>
     </div>
   </div>
-</div>
-
-<div class="mt-8 p-4 bg-gray-50 rounded-lg">
-  <h3 class="font-bold mb-2">核心价值主张</h3>
-  <p class="text-gray-700">从"信息检索"到"智能决策" - 为钢铁行业提供专业化AI决策支持系统</p>
+  
+  <div class="flex items-center p-5 bg-yellow-50 rounded-xl border-l-4 border-yellow-500 hover:shadow-lg transition">
+    <div class="text-4xl font-bold text-yellow-600 mr-6 w-16 text-center">三</div>
+    <div class="flex-1">
+      <div class="text-xl font-bold text-yellow-600 mb-1">技术创新</div>
+      <div class="text-sm text-gray-600">核心突破与差异化竞争优势</div>
+    </div>
+  </div>
+  
+  <div class="flex items-center p-5 bg-purple-50 rounded-xl border-l-4 border-purple-500 hover:shadow-lg transition">
+    <div class="text-4xl font-bold text-purple-600 mr-6 w-16 text-center">四</div>
+    <div class="flex-1">
+      <div class="text-xl font-bold text-purple-600 mb-1">发展展望</div>
+      <div class="text-sm text-gray-600">技术演进路径与未来规划</div>
+    </div>
+  </div>
 </div>
 
 ---
 layout: section
+background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #60a5fa 100%)
 ---
 
-# 项目背景
-## 钢铁行业的数字化转型需求
+<div class="h-full flex flex-col justify-center items-center text-white">
+  <h1 class="text-5xl font-bold mb-4">一、项目背景</h1>
+  <h2 class="text-2xl opacity-90">钢铁行业的数字化转型需求</h2>
+  
+  <div class="absolute bottom-10 right-10 text-white/50 text-lg">
+    Background
+  </div>
+</div>
+
+---
+
+# 项目概览
+
+<style>
+.slidev-layout {
+  background: linear-gradient(135deg, #0c4a6e 0%, #075985 25%, #0369a1 50%, #0284c7 75%, #0ea5e9 100%) !important;
+  background-image: 
+    radial-gradient(circle at 15% 15%, rgba(34, 197, 94, 0.2) 0%, transparent 50%),
+    radial-gradient(circle at 85% 85%, rgba(251, 191, 36, 0.2) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(168, 85, 247, 0.1) 0%, transparent 50%);
+}
+</style>
+
+<div class="grid grid-cols-2 gap-8">
+  <div>
+    <h2 class="text-2xl font-bold mb-4 text-blue-600">基本信息</h2>
+    <div class="space-y-3">
+      <div class="flex items-start">
+        <carbon:application class="text-blue-500 mt-1 mr-3" />
+        <div>
+          <strong>项目名称</strong><br>
+          <span class="text-sm">CastIron 助铁 ｜ 钢铁行业AI决策中心</span>
+        </div>
+      </div>
+      <div class="flex items-start">
+        <carbon:ai-results class="text-green-500 mt-1 mr-3" />
+        <div>
+          <strong>技术架构</strong><br>
+          <span class="text-sm">RAG Agent智能决策系统</span>
+        </div>
+      </div>
+      <div class="flex items-start">
+        <carbon:user-multiple class="text-purple-500 mt-1 mr-3" />
+        <div>
+          <strong>团队规模</strong><br>
+          <span class="text-sm">3人（后端2人 + 前端1人）</span>
+        </div>
+      </div>
+      <div class="flex items-start">
+        <carbon:checkmark class="text-green-600 mt-1 mr-3" />
+        <div>
+          <strong>项目状态</strong><br>
+          <span class="text-sm">MVP已完成，通过测试验证</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <h2 class="text-2xl font-bold mb-4 text-green-600">目标用户</h2>
+    <div class="grid grid-cols-2 gap-3">
+      <div class="flex items-center bg-blue-50 p-3 rounded">
+        <carbon:industry class="text-blue-600 mr-2" />
+        <span class="text-sm font-medium">生产管理者</span>
+      </div>
+      <div class="flex items-center bg-green-50 p-3 rounded">
+        <carbon:tools class="text-green-600 mr-2" />
+        <span class="text-sm font-medium">技术专家</span>
+      </div>
+      <div class="flex items-center bg-yellow-50 p-3 rounded">
+        <carbon:shopping-cart class="text-yellow-600 mr-2" />
+        <span class="text-sm font-medium">采购人员</span>
+      </div>
+      <div class="flex items-center bg-purple-50 p-3 rounded">
+        <carbon:chart-line class="text-purple-600 mr-2" />
+        <span class="text-sm font-medium">市场分析师</span>
+      </div>
+      <div class="flex items-center bg-red-50 p-3 rounded">
+        <carbon:settings class="text-red-600 mr-2" />
+        <span class="text-sm font-medium">设备维护</span>
+      </div>
+      <div class="flex items-center bg-indigo-50 p-3 rounded">
+        <carbon:earth class="text-indigo-600 mr-2" />
+        <span class="text-sm font-medium">环保专家</span>
+      </div>
+    </div>
+    <div class="mt-4 p-4 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg">
+      <h3 class="font-bold mb-2 text-blue-700">核心价值主张</h3>
+      <p class="text-sm text-gray-700">从"信息检索"到"智能决策" - 为钢铁行业提供专业化AI决策支持系统</p>
+    </div>
+  </div>
+</div>
 
 ---
 
 # 行业现状与挑战
+
+<style>
+.slidev-layout {
+  background: linear-gradient(135deg, #7c2d12 0%, #dc2626 25%, #ef4444 50%, #f87171 75%, #fca5a5 100%) !important;
+  background-image: 
+    radial-gradient(circle at 30% 20%, rgba(59, 130, 246, 0.2) 0%, transparent 50%),
+    radial-gradient(circle at 70% 80%, rgba(16, 185, 129, 0.2) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(168, 85, 247, 0.1) 0%, transparent 50%);
+}
+</style>
 
 <div class="grid grid-cols-2 gap-8">
   <div>
@@ -149,6 +256,16 @@ layout: section
 
 # 市场需求分析
 
+<style>
+.slidev-layout {
+  background: linear-gradient(135deg, #14532d 0%, #166534 25%, #16a34a 50%, #22c55e 75%, #4ade80 100%) !important;
+  background-image: 
+    radial-gradient(circle at 20% 80%, rgba(59, 130, 246, 0.2) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(251, 191, 36, 0.2) 0%, transparent 50%),
+    radial-gradient(circle at 40% 40%, rgba(168, 85, 247, 0.1) 0%, transparent 50%);
+}
+</style>
+
 <div class="grid grid-cols-3 gap-6">
   <div class="text-center">
     <div class="text-3xl font-bold text-blue-600 mb-2">85%</div>
@@ -188,50 +305,155 @@ layout: section
 
 ---
 layout: section
+background: linear-gradient(135deg, #065f46 0%, #10b981 50%, #6ee7b7 100%)
 ---
 
-# 核心技术
-## RAG架构与关键技术实现
+<div class="h-full flex flex-col justify-center items-center text-white">
+  <h1 class="text-5xl font-bold mb-4">二、项目内容</h1>
+  <h2 class="text-2xl opacity-90">系统功能与技术架构</h2>
+  
+  <div class="absolute bottom-10 right-10 text-white/50 text-lg">
+    Content
+  </div>
+</div>
+
+---
+
+# 系统核心功能
+
+<style>
+.slidev-layout {
+  background: linear-gradient(135deg, #1e293b 0%, #334155 25%, #475569 50%, #64748b 75%, #94a3b8 100%) !important;
+  background-image: 
+    radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(255, 119, 198, 0.3) 0%, transparent 50%),
+    radial-gradient(circle at 40% 40%, rgba(120, 219, 255, 0.2) 0%, transparent 50%);
+}
+</style>
+
+<div class="grid grid-cols-2 gap-4">
+  <div class="space-y-3">
+    <div class="border-l-4 border-blue-500 pl-3 bg-gradient-to-r from-blue-50 to-blue-100 p-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-300">
+      <div class="flex items-center mb-1">
+        <carbon:chat class="text-blue-600 text-xl mr-2" />
+        <h3 class="font-bold text-blue-700 text-sm">智能问答系统</h3>
+      </div>
+      <p class="text-xs text-gray-700">基于RAG技术的钢铁工艺智能问答，支持多轮对话、文档检索与引用</p>
+    </div>
+    
+    <div class="border-l-4 border-green-500 pl-3 bg-gradient-to-r from-green-50 to-green-100 p-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-300">
+      <div class="flex items-center mb-1">
+        <carbon:settings class="text-green-600 text-xl mr-2" />
+        <h3 class="font-bold text-green-700 text-sm">设备故障诊断</h3>
+      </div>
+      <p class="text-xs text-gray-700">对话式故障诊断助手，基于历史案例和维修手册提供精准解决方案</p>
+    </div>
+    
+    <div class="border-l-4 border-yellow-500 pl-3 bg-gradient-to-r from-yellow-50 to-yellow-100 p-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-300">
+      <div class="flex items-center mb-1">
+        <carbon:chart-line class="text-yellow-600 text-xl mr-2" />
+        <h3 class="font-bold text-yellow-700 text-sm">市场情报分析</h3>
+      </div>
+      <p class="text-xs text-gray-700">AI驱动的市场报告解读，自动提取关键信息，生成决策建议</p>
+    </div>
+  </div>
+  
+  <div class="space-y-3">
+    <div class="border-l-4 border-purple-500 pl-3 bg-gradient-to-r from-purple-50 to-purple-100 p-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-300">
+      <div class="flex items-center mb-1">
+        <carbon:network-3 class="text-purple-600 text-xl mr-2" />
+        <h3 class="font-bold text-purple-700 text-sm">知识图谱可视化</h3>
+      </div>
+      <p class="text-xs text-gray-700">钢铁生产流程、设备关系、工艺参数的图谱化展示，支持交互式探索</p>
+    </div>
+    
+    <div class="border-l-4 border-red-500 pl-3 bg-gradient-to-r from-red-50 to-red-100 p-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-300">
+      <div class="flex items-center mb-1">
+        <carbon:document class="text-red-600 text-xl mr-2" />
+        <h3 class="font-bold text-red-700 text-sm">知识库管理</h3>
+      </div>
+      <p class="text-xs text-gray-700">支持PDF、DOCX等多格式文档上传，自动向量化、语义检索、版本管理</p>
+    </div>
+    
+    <div class="border-l-4 border-indigo-500 pl-3 bg-gradient-to-r from-indigo-50 to-indigo-100 p-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-300">
+      <div class="flex items-center mb-1">
+        <carbon:user-admin class="text-indigo-600 text-xl mr-2" />
+        <h3 class="font-bold text-indigo-700 text-sm">角色权限系统</h3>
+      </div>
+      <p class="text-xs text-gray-700">多角色支持，定制化AI响应风格，精细化权限控制</p>
+    </div>
+  </div>
+</div>
 
 ---
 
 # 技术架构设计
 
-```mermaid {scale: 0.6}
-graph TB
-    A[用户界面层] --> B[API网关层]
-    B --> C[Agent调度层]
-    C --> D[RAG引擎]
-    C --> E[推理引擎]
-    
-    D --> F[向量检索]
-    D --> G[知识图谱]
-    D --> H[文档处理]
-    
-    F --> I[FAISS向量库]
-    G --> J[Neo4j图数据库]
-    H --> K[文档存储]
-    
-    E --> L[LLM模型]
-    E --> M[提示工程]
-    
-    subgraph "数据层"
-        I
-        J
-        K
-        N[关系数据库]
-    end
-    
-    subgraph "AI模型层"
-        L
-        O[嵌入模型]
-        P[专业词汇库]
-    end
-```
+<style>
+.slidev-layout {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 25%, #334155 50%, #475569 75%, #64748b 100%) !important;
+  background-image: 
+    radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.2) 0%, transparent 50%),
+    radial-gradient(circle at 90% 80%, rgba(16, 185, 129, 0.2) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(168, 85, 247, 0.1) 0%, transparent 50%);
+}
+</style>
+
+<div class="grid grid-cols-2 gap-6">
+  <div>
+    <h3 class="font-bold mb-3 text-blue-600">核心层次</h3>
+    <div class="space-y-2">
+      <div class="p-3 bg-blue-50 rounded border-l-4 border-blue-500">
+        <strong>用户界面层</strong><br>
+        <span class="text-sm text-gray-600">Next.js + React + shadcn/ui</span>
+      </div>
+      <div class="p-3 bg-green-50 rounded border-l-4 border-green-500">
+        <strong>API网关层</strong><br>
+        <span class="text-sm text-gray-600">FastAPI + 中间件 + 认证</span>
+      </div>
+      <div class="p-3 bg-yellow-50 rounded border-l-4 border-yellow-500">
+        <strong>Agent调度层</strong><br>
+        <span class="text-sm text-gray-600">多Agent协作 + 任务路由</span>
+      </div>
+      <div class="p-3 bg-purple-50 rounded border-l-4 border-purple-500">
+        <strong>RAG引擎</strong><br>
+        <span class="text-sm text-gray-600">向量检索 + 知识图谱</span>
+      </div>
+    </div>
+  </div>
+  
+  <div>
+    <h3 class="font-bold mb-3 text-green-600">数据与模型</h3>
+    <div class="space-y-2">
+      <div class="p-3 bg-blue-50 rounded">
+        <strong>数据层</strong><br>
+        <span class="text-sm text-gray-600">• FAISS向量库<br>• MySQL关系数据库<br>• 文档存储系统</span>
+      </div>
+      <div class="p-3 bg-green-50 rounded">
+        <strong>AI模型层</strong><br>
+        <span class="text-sm text-gray-600">• LLM模型 (Qwen)<br>• 嵌入模型<br>• 专业词汇库 (218+)</span>
+      </div>
+      <div class="p-3 bg-purple-50 rounded">
+        <strong>推理引擎</strong><br>
+        <span class="text-sm text-gray-600">• ReAct框架<br>• 多步推理<br>• 工具调用</span>
+      </div>
+    </div>
+  </div>
+</div>
 
 ---
 
 # 关键技术实现
+
+<style>
+.slidev-layout {
+  background: linear-gradient(135deg, #1e1b4b 0%, #312e81 25%, #4338ca 50%, #6366f1 75%, #8b5cf6 100%) !important;
+  background-image: 
+    radial-gradient(circle at 25% 25%, rgba(34, 197, 94, 0.2) 0%, transparent 50%),
+    radial-gradient(circle at 75% 75%, rgba(251, 191, 36, 0.2) 0%, transparent 50%),
+    radial-gradient(circle at 50% 10%, rgba(239, 68, 68, 0.1) 0%, transparent 50%);
+}
+</style>
 
 <div class="grid grid-cols-2 gap-8">
   <div>
@@ -313,14 +535,31 @@ graph TB
 
 ---
 layout: section
+background: linear-gradient(135deg, #ea580c 0%, #fb923c 50%, #fbbf24 100%)
 ---
 
-# 创新亮点
-## 技术突破与差异化优势
+<div class="h-full flex flex-col justify-center items-center text-white">
+  <h1 class="text-5xl font-bold mb-4">三、技术创新</h1>
+  <h2 class="text-2xl opacity-90">核心突破与差异化优势</h2>
+  
+  <div class="absolute bottom-10 right-10 text-white/50 text-lg">
+    Innovation
+  </div>
+</div>
 
 ---
 
 # 技术创新突破
+
+<style>
+.slidev-layout {
+  background: linear-gradient(135deg, #7c2d12 0%, #ea580c 25%, #fb923c 50%, #fbbf24 75%, #fde047 100%) !important;
+  background-image: 
+    radial-gradient(circle at 20% 30%, rgba(59, 130, 246, 0.2) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(16, 185, 129, 0.2) 0%, transparent 50%),
+    radial-gradient(circle at 60% 20%, rgba(168, 85, 247, 0.1) 0%, transparent 50%);
+}
+</style>
 
 <div class="grid grid-cols-2 gap-8">
   <div>
@@ -408,10 +647,17 @@ layout: section
 
 ---
 layout: section
+background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 50%, #c4b5fd 100%)
 ---
 
-# 发展前景
-## 技术演进与发展前景
+<div class="h-full flex flex-col justify-center items-center text-white">
+  <h1 class="text-5xl font-bold mb-4">四、发展展望</h1>
+  <h2 class="text-2xl opacity-90">技术演进与未来规划</h2>
+  
+  <div class="absolute bottom-10 right-10 text-white/50 text-lg">
+    Prospect
+  </div>
+</div>
 
 ---
 
@@ -533,74 +779,32 @@ layout: section
 </div>
 
 ---
-layout: section
----
-
-# 团队与发展
-## 团队构成与未来规划
-
----
-
-# 团队构成与分工
-
-<div class="max-w-4xl mx-auto">
-  <h2 class="text-2xl font-bold mb-6 text-center text-blue-600">👥 核心团队</h2>
-  
-  <div class="grid grid-cols-2 gap-6">
-    <div class="flex items-start p-4 bg-green-50 rounded-lg">
-      <carbon:code class="text-3xl text-green-600 mr-4 mt-1" />
-      <div>
-        <strong class="text-lg">后端开发工程师 (2人)</strong><br>
-        <span class="text-sm text-gray-600 block mt-1">
-          • RAG引擎核心开发<br>
-          • 知识图谱构建与维护<br>
-          • API接口设计与实现<br>
-          • 数据库优化与性能调优
-        </span>
-      </div>
-    </div>
-    <div class="flex items-start p-4 bg-yellow-50 rounded-lg">
-      <carbon:laptop class="text-3xl text-yellow-600 mr-4 mt-1" />
-      <div>
-        <strong class="text-lg">前端开发工程师 (1人)</strong><br>
-        <span class="text-sm text-gray-600 block mt-1">
-          • 用户界面设计与开发<br>
-          • 交互体验优化<br>
-          • 响应式布局实现<br>
-          • 前后端数据对接
-        </span>
-      </div>
-    </div>
-  </div>
-</div>
-
----
 
 # 技术挑战与解决方案
 
 <div class="grid grid-cols-2 gap-8">
   <div>
-    <h2 class="text-xl font-bold mb-4 text-red-600">🚧 主要挑战</h2>
-    <div class="space-y-2">
+    <h2 class="text-xl font-bold mb-4 text-red-600">🚧 核心技术挑战</h2>
+    <div class="space-y-3">
       <div class="border-l-4 border-red-500 pl-4">
-        <h3 class="font-bold">专业术语理解</h3>
-        <p class="text-sm text-gray-600">钢铁行业术语复杂，AI理解困难</p>
-        <div class="mt-2 p-2 bg-green-50 rounded text-sm">
-          <strong>解决方案:</strong> 构建218+专业词汇库，定制化训练
+        <h3 class="font-bold">专业术语理解难题</h3>
+        <p class="text-sm text-gray-600 mb-2">钢铁行业术语复杂，通用AI理解困难</p>
+        <div class="p-2 bg-green-50 rounded text-sm">
+          <strong class="text-green-700">✓ 解决方案:</strong> 构建218+专业词汇库，定制化嵌入模型训练
         </div>
       </div>
       <div class="border-l-4 border-orange-500 pl-4">
         <h3 class="font-bold">多模态数据处理</h3>
-        <p class="text-sm text-gray-600">图表、图像等非结构化数据处理</p>
-        <div class="mt-2 p-2 bg-green-50 rounded text-sm">
-          <strong>解决方案:</strong> 多模态RAG架构，统一向量化处理
+        <p class="text-sm text-gray-600 mb-2">图表、图像等非结构化数据难以检索</p>
+        <div class="p-2 bg-green-50 rounded text-sm">
+          <strong class="text-green-700">✓ 解决方案:</strong> 多模态RAG架构，统一向量化处理流程
         </div>
       </div>
       <div class="border-l-4 border-yellow-500 pl-4">
-        <h3 class="font-bold">实时性要求</h3>
-        <p class="text-sm text-gray-600">生产环境要求快速响应</p>
-        <div class="mt-2 p-2 bg-green-50 rounded text-sm">
-          <strong>解决方案:</strong> 缓存机制+超时降级策略
+        <h3 class="font-bold">实时性要求高</h3>
+        <p class="text-sm text-gray-600 mb-2">生产环境要求快速响应，不能超时</p>
+        <div class="p-2 bg-green-50 rounded text-sm">
+          <strong class="text-green-700">✓ 解决方案:</strong> 智能缓存机制 + 25秒超时降级策略
         </div>
       </div>
     </div>
@@ -608,17 +812,26 @@ layout: section
   <div>
     <h2 class="text-xl font-bold mb-4 text-green-600">✅ 阶段性成果</h2>
     <div class="space-y-3">
-      <div class="bg-green-50 p-3 rounded">
-        <strong>MVP完成</strong><br>
-        <span class="text-sm">核心功能已实现，通过内部测试</span>
+      <div class="bg-green-50 p-4 rounded-lg">
+        <div class="flex items-center mb-2">
+          <carbon:checkmark class="text-green-600 mr-2" />
+          <strong class="text-green-700">MVP完成</strong>
+        </div>
+        <span class="text-sm text-gray-700">核心功能已实现，通过内部测试验证</span>
       </div>
-      <div class="bg-blue-50 p-3 rounded">
-        <strong>知识库建设</strong><br>
-        <span class="text-sm">已收录大量专业文档</span>
+      <div class="bg-blue-50 p-4 rounded-lg">
+        <div class="flex items-center mb-2">
+          <carbon:document class="text-blue-600 mr-2" />
+          <strong class="text-blue-700">知识库建设</strong>
+        </div>
+        <span class="text-sm text-gray-700">已收录大量钢铁行业专业文档和技术资料</span>
       </div>
-      <div class="bg-purple-50 p-3 rounded">
-        <strong>技术验证</strong><br>
-        <span class="text-sm">95%检索准确率，2秒响应时间</span>
+      <div class="bg-purple-50 p-4 rounded-lg">
+        <div class="flex items-center mb-2">
+          <carbon:certificate class="text-purple-600 mr-2" />
+          <strong class="text-purple-700">技术指标验证</strong>
+        </div>
+        <span class="text-sm text-gray-700">95%检索准确率，平均2秒响应时间</span>
       </div>
     </div>
   </div>
@@ -626,46 +839,98 @@ layout: section
 
 ---
 layout: center
+background: linear-gradient(135deg, #fef3c7 0%, #ddd6fe 50%, #bfdbfe 100%)
 ---
 
-# 总结
+# 项目总结
 
-<div class="text-center space-y-8">
-  <h2 class="text-3xl font-bold text-blue-600">钢铁行业AI决策中心</h2>
-  <p class="text-xl text-gray-600">从信息检索到智能决策的突破</p>
-  
-  <div class="grid grid-cols-3 gap-6 mt-8">
-    <div class="text-center">
-      <carbon:industry class="text-3xl text-blue-600 mb-2 mx-auto" />
-      <div class="font-bold">行业专精</div>
-      <div class="text-sm text-gray-600">钢铁领域深度理解</div>
-    </div>
-    <div class="text-center">
-      <carbon:ai-results class="text-3xl text-green-600 mb-2 mx-auto" />
-      <div class="font-bold">技术领先</div>
-      <div class="text-sm text-gray-600">RAG+Agent架构</div>
-    </div>
-    <div class="text-center">
-      <carbon:idea class="text-3xl text-purple-600 mb-2 mx-auto" />
-      <div class="font-bold">技术创新</div>
-      <div class="text-sm text-gray-600">多模态RAG架构</div>
-    </div>
+<div class="text-center mb-8">
+  <h2 class="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-purple-600 to-green-600 mb-3">
+    CastIron 助铁 | 钢铁行业AI决策中心
+  </h2>
+  <p class="text-lg text-gray-600">从"信息检索"到"智能决策"的技术突破</p>
+</div>
+
+<div class="grid grid-cols-4 gap-3 mb-6">
+  <div class="text-center p-3 bg-blue-50 rounded-lg border-t-4 border-blue-500">
+    <div class="text-2xl font-bold text-blue-600">一</div>
+    <div class="font-bold text-blue-700 text-sm">背景</div>
+    <p class="text-xs text-gray-600">行业痛点 · 市场需求</p>
   </div>
-  
-  <div class="mt-8 p-6 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg">
-    <h3 class="text-xl font-bold mb-4">技术价值</h3>
-    <p class="text-gray-700">基于多模态RAG架构和知识图谱技术，构建钢铁行业专业AI决策系统，实现智能检索、推理分析和决策支持，推动行业技术创新发展</p>
+  <div class="text-center p-3 bg-green-50 rounded-lg border-t-4 border-green-500">
+    <div class="text-2xl font-bold text-green-600">二</div>
+    <div class="font-bold text-green-700 text-sm">内容</div>
+    <p class="text-xs text-gray-600">6大功能 · RAG架构</p>
   </div>
+  <div class="text-center p-3 bg-yellow-50 rounded-lg border-t-4 border-yellow-500">
+    <div class="text-2xl font-bold text-yellow-600">三</div>
+    <div class="font-bold text-yellow-700 text-sm">创新</div>
+    <p class="text-xs text-gray-600">知识图谱 · 多模态</p>
+  </div>
+  <div class="text-center p-3 bg-purple-50 rounded-lg border-t-4 border-purple-500">
+    <div class="text-2xl font-bold text-purple-600">四</div>
+    <div class="font-bold text-purple-700 text-sm">展望</div>
+    <p class="text-xs text-gray-600">技术演进 · 功能扩展</p>
+  </div>
+</div>
+
+<div class="grid grid-cols-3 gap-4 mb-6">
+  <div class="text-center p-3 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg">
+    <carbon:industry class="text-3xl text-blue-600 mb-2 mx-auto" />
+    <div class="font-bold text-blue-700 text-sm mb-1">垂直领域专精</div>
+    <div class="text-xs text-gray-600">218+专业术语库</div>
+  </div>
+  <div class="text-center p-3 bg-gradient-to-br from-green-50 to-green-100 rounded-lg">
+    <carbon:ai-results class="text-3xl text-green-600 mb-2 mx-auto" />
+    <div class="font-bold text-green-700 text-sm mb-1">技术架构先进</div>
+    <div class="text-xs text-gray-600">RAG+Agent+知识图谱</div>
+  </div>
+  <div class="text-center p-3 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg">
+    <carbon:chart-line class="text-3xl text-purple-600 mb-2 mx-auto" />
+    <div class="font-bold text-purple-700 text-sm mb-1">性能指标优异</div>
+    <div class="text-xs text-gray-600">95%准确率 · 2秒响应</div>
+  </div>
+</div>
+
+<div class="p-4 bg-gradient-to-r from-blue-100 via-green-100 to-purple-100 rounded-lg shadow-md">
+  <h3 class="text-lg font-bold mb-2 text-center text-gray-800">核心价值</h3>
+  <p class="text-center text-sm text-gray-700 leading-relaxed">
+    基于多模态RAG架构和专业知识图谱技术，为钢铁行业打造智能决策支持系统，实现智能检索、推理分析和决策支持
+  </p>
 </div>
 
 ---
 layout: end
+background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%)
 ---
 
 # 谢谢！
 
-<div class="text-center space-y-6">
-  <div class="mt-8 text-gray-500">
-    钢铁行业AI决策中心 · 让智能决策触手可及
+<div class="text-center space-y-8 mt-16">
+  <div class="text-6xl font-bold text-white drop-shadow-2xl">
+    CastIron 助铁
+  </div>
+  
+  <div class="text-2xl text-white/90 font-light drop-shadow-lg">
+    让智能决策触手可及
+  </div>
+  
+  <div class="flex justify-center gap-12 mt-12">
+    <div class="text-center bg-white/20 backdrop-blur-sm p-6 rounded-xl">
+      <carbon:industry class="text-5xl text-white mx-auto mb-3" />
+      <div class="text-sm text-white font-semibold">行业专精</div>
+    </div>
+    <div class="text-center bg-white/20 backdrop-blur-sm p-6 rounded-xl">
+      <carbon:ai-results class="text-5xl text-white mx-auto mb-3" />
+      <div class="text-sm text-white font-semibold">AI赋能</div>
+    </div>
+    <div class="text-center bg-white/20 backdrop-blur-sm p-6 rounded-xl">
+      <carbon:idea class="text-5xl text-white mx-auto mb-3" />
+      <div class="text-sm text-white font-semibold">持续创新</div>
+    </div>
+  </div>
+  
+  <div class="mt-16 text-white/70 text-base">
+    钢铁行业AI决策中心 · RAG Agent智能决策系统
   </div>
 </div>
