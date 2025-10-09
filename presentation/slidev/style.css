@@ -1,0 +1,81 @@
+/* 自定义字体样式 */
+
+/* 导入Google字体 */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;400;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+
+/* 全局字体设置 */
+:root {
+  --slidev-font-family: 'IBM Plex Sans', 'Noto Sans SC', 'Microsoft YaHei', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+  --slidev-font-mono: 'IBM Plex Mono', 'Fira Code', 'Consolas', 'Monaco', monospace;
+  --slidev-font-serif: 'IBM Plex Sans', 'Noto Sans SC', serif;
+}
+
+/* 应用字体到整个文档 */
+html {
+  font-family: var(--slidev-font-family);
+}
+
+/* 标题字体 */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--slidev-font-family);
+  font-weight: 600;
+}
+
+/* 代码字体 */
+code, pre, .shiki {
+  font-family: var(--slidev-font-mono);
+}
+
+/* 中文字体优化 */
+.slidev-layout {
+  font-family: var(--slidev-font-family);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 特定字体大小调整 */
+.text-sm {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.text-lg {
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+}
+
+.text-xl {
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+}
+
+.text-2xl {
+  font-size: 1.5rem;
+  line-height: 2rem;
+}
+
+.text-3xl {
+  font-size: 1.875rem;
+  line-height: 2.25rem;
+}
+
+/* 字体权重类 */
+.font-light {
+  font-weight: 300;
+}
+
+.font-normal {
+  font-weight: 400;
+}
+
+.font-medium {
+  font-weight: 500;
+}
+
+.font-semibold {
+  font-weight: 600;
+}
+
+.font-bold {
+  font-weight: 700;
+}
