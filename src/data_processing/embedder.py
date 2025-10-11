@@ -35,3 +35,15 @@ class Embedder:
             norms = np.linalg.norm(vectors, axis=1, keepdims=True) + 1e-12
             vectors = vectors / norms
         return vectors
+
+    def embed(self, texts: List[str]) -> np.ndarray:
+        """
+        将文本列表转换为向量（encode 方法的别名，用于兼容 Searcher 接口）。
+
+        Args:
+            texts: 待向量化的文本列表
+
+        Returns:
+            shape=(N,D) 的归一化 float32 向量数组
+        """
+        return self.encode(texts, normalize=True)
