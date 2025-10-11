@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 """
+⚠️ DEPRECATED: 此脚本已废弃，请使用新的统一 CLI 工具
+
+推荐使用: python scripts/db_migrate.py add-presets
+
 数据库迁移脚本：添加Agent预设问题表
 """
 

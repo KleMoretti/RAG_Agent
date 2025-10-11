@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 """
+⚠️ DEPRECATED: 此脚本已废弃，请使用新的统一 CLI 工具
+
+推荐使用: python scripts/rag_cli.py build --help
+
 RAG系统构建脚本 - 专为学术论文RAG设计
 符合AGENTS.md元数据规范，支持中文学术论文的智能分块和检索
 
@@ -7,6 +11,10 @@ RAG系统构建脚本 - 专为学术论文RAG设计
     python scripts/build_rag_system.py --help
     python scripts/build_rag_system.py --input data/raw --output data/embeddings
     python scripts/build_rag_system.py --rebuild --chunk-size 800
+    
+新方式:
+    python scripts/rag_cli.py build --help
+    python scripts/rag_cli.py build --rebuild --chunk-size 800
 """
 
 import argparse

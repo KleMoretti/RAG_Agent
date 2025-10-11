@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 """
+⚠️ DEPRECATED: 此脚本已废弃，请使用新的统一 CLI 工具
+
+推荐使用: python scripts/db_migrate.py reset
+
 重置数据库的脚本
 删除所有表并重新创建
 使用方法: python scripts/reset_database.py

@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
 """
+⚠️ DEPRECATED: 此脚本已废弃，请使用新的统一 CLI 工具
+
+推荐使用: 
+    python scripts/rag_cli.py search --interactive
+    python scripts/rag_cli.py search "查询词" --top-k 5
+
 RAG系统使用示例
 展示如何使用构建好的RAG系统进行文档检索和问答
 """
@@ -8,11 +14,11 @@ import sys
 from pathlib import Path
 
 # 添加项目根目录到Python路径
-project_root = Path(__file__).parent.parent
+project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-# 现在可以直接导入
-from scripts.build_rag_system import AcademicRAGBuilder
+# 从 deprecated 目录导入
+from scripts.deprecated.build_rag_system import AcademicRAGBuilder
 from config.logging_config import setup_logging
 from scripts.paths import ensure_data_dirs
 

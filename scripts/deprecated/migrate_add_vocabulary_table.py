@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 """
+⚠️ DEPRECATED: 此脚本已废弃，请使用新的统一 CLI 工具
+
+推荐使用: python scripts/db_migrate.py add-vocabulary
+
 添加专业词汇表的数据库迁移脚本
 使用方法: python scripts/migrate_add_vocabulary_table.py
 """

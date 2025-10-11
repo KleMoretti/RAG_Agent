@@ -1,4 +1,9 @@
 # data_ingestion.py
+"""
+⚠️ DEPRECATED: 此脚本已废弃，请使用新的统一 CLI 工具
+
+推荐使用: python scripts/rag_cli.py build
+"""
 from typing import List, Dict, Optional, Callable
 from pathlib import Path
 import logging
