@@ -37,6 +37,8 @@ from src.retrieval.vector_store import VectorStore
 from src.retrieval.indexer import Indexer
 from config.logging_config import setup_logging
 from scripts.paths import DATA_DIRS, ensure_data_dirs
+from src.api.db import get_db, db_context
+from src.api.models import Agent, User, SystemPrompt
 
 
 class RAGSystemManager:
@@ -501,6 +503,34 @@ def cmd_migrate(args):
         print("       python scripts/migrate_to_fast_index.py --auto")
 
 
+def cmd_check(args):
+    """检查数据库对象状态"""
+    with db_context() as db:
+        print("\n📊 数据库状态检查")
+        print("=" * 60)
+
+        agent_count = db.query(Agent).count()
+        user_count = db.query(User).count()
+        prompt_count = db.query(SystemPrompt).count()
+
+        print(f"🧠 Agent 数量: {agent_count}")
+        if args.verbose and agent_count:
+            for agent in db.query(Agent).order_by(Agent.id):
+                print(f"  - ID: {agent.id}, 名称: {agent.name}, 展示名: {agent.display_name}, 类型: {agent.agent_type}")
+
+        print(f"👤 用户数量: {user_count}")
+        if args.verbose and user_count:
+            for user in db.query(User).order_by(User.id):
+                print(f"  - ID: {user.id}, 用户名: {user.username}, 角色: {user.role}")
+
+        print(f"🗂️  Prompt 数量: {prompt_count}")
+        if args.verbose and prompt_count:
+            for prompt in db.query(SystemPrompt).order_by(SystemPrompt.id):
+                print(f"  - ID: {prompt.id}, 名称: {prompt.name}, 状态: {prompt.status}, 语言: {prompt.language}, 默认: {prompt.is_default}")
+
+        print("=" * 60)
+
+
 def main():
     """主函数"""
     parser = argparse.ArgumentParser(
@@ -577,6 +607,9 @@ def main():
     migrate_parser.add_argument('--auto', action='store_true',
                                help='自动模式（备份+迁移+替换）')
     
+    check_parser = subparsers.add_parser('check', help='检查数据库状态（Agent、用户、Prompt）')
+    check_parser.add_argument('--verbose', '-v', action='store_true', help='显示详细列表')
+    
     args = parser.parse_args()
     
     if not args.command:
@@ -591,6 +624,7 @@ def main():
         'export': cmd_export,
         'benchmark': cmd_benchmark,
         'migrate': cmd_migrate,
+        'check': cmd_check,
     }
     
     handler = command_handlers.get(args.command)

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from typing import Generator
+from collections.abc import Iterator
+from contextlib import contextmanager
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
+from sqlalchemy.orm import Session
 
 from config.settings import get_settings
 
@@ -45,5 +48,17 @@ def get_db() -> Generator:
         yield db
     finally:
         db.close()
+
+
+@contextmanager
+def db_context() -> Iterator[Session]:
+    session = SessionLocal()
+    try:
+        yield session
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
 
 

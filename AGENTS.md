@@ -1,5 +1,53 @@
 # AGENTS.md (Automation Cheatsheet)
-1. Setup: `python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt` (Python 3.10#### 3. Intelligent Equipment Mainte#### 4. Market Intelligence & Analysis Assistant
+
+## Quick Start
+
+### System Management (Unified CLI)
+```bash
+# 初始化系统（首次运行）
+python manage.py init
+
+# 启动服务
+python manage.py start backend       # 启动后端
+python manage.py start frontend      # 启动前端  
+python manage.py start all           # 同时启动前后端
+
+# 检查状态
+python manage.py check               # 检查数据库（Agent、用户、Prompt）
+python manage.py check --verbose     # 详细信息
+python manage.py status              # 查看系统运行状态
+```
+
+### RAG System Management (scripts/rag_cli.py)
+```bash
+# 构建 RAG 索引
+python scripts/rag_cli.py build --rebuild
+
+# 搜索文档
+python scripts/rag_cli.py search "钢铁生产流程" --top-k 5
+python scripts/rag_cli.py search --interactive
+
+# 查看系统信息
+python scripts/rag_cli.py info
+python scripts/rag_cli.py check      # 检查数据库状态
+```
+
+### Database Management (scripts/db_migrate.py)
+```bash
+# 数据库迁移
+python scripts/db_migrate.py reset          # 重置数据库
+python scripts/db_migrate.py add-presets   # 添加预设问题表
+python scripts/db_migrate.py add-prompts   # 添加 Prompt 管理表
+python scripts/db_migrate.py status        # 查看数据库状态
+```
+
+---
+
+## Development Standards
+
+1. Setup: `python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt` (Python 3.10+)
+2. Start: `python manage.py start all` or `python manage.py start backend` (FastAPI on port 8000)
+3. Tests: all `pytest -q`; single file `pytest tests/integration.py`; single test `pytest tests/integration.py::test_name`; keyword `pytest -k search`.
 
 **📊 Production Mode (with real data)**:
 - 💹 **Live Price Feed**: Real-time iron ore, coal, steel product prices from market APIs
