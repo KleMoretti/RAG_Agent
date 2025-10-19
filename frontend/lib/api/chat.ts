@@ -32,9 +32,9 @@ export const chatApi = {
  * Helper function to send message (exported for direct use)
  */
 export async function sendMessage(
-  message: string,
-  sessionId?: string,
-  agentId?: string
+    message: string,
+    sessionId?: string,
+    agentId?: string,
 ): Promise<ChatResponse> {
-  return chatApi.sendMessage({ message, sessionId, agentId });
+    return chatApi.sendMessage({ message, sessionId, agentId });
 }

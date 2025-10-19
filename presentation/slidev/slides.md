@@ -340,7 +340,6 @@ background: linear-gradient(135deg, #065f46 0%, #10b981 50%, #6ee7b7 100%)
       </div>
       <p class="text-xs text-gray-700">基于RAG技术的钢铁工艺智能问答，支持多轮对话、文档检索与引用</p>
     </div>
-    
     <div class="border-l-4 border-green-500 pl-3 bg-gradient-to-r from-green-50 to-green-100 p-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-300">
       <div class="flex items-center mb-1">
         <carbon:settings class="text-green-600 text-xl mr-2" />
@@ -348,7 +347,6 @@ background: linear-gradient(135deg, #065f46 0%, #10b981 50%, #6ee7b7 100%)
       </div>
       <p class="text-xs text-gray-700">对话式故障诊断助手，基于历史案例和维修手册提供精准解决方案</p>
     </div>
-    
     <div class="border-l-4 border-yellow-500 pl-3 bg-gradient-to-r from-yellow-50 to-yellow-100 p-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-300">
       <div class="flex items-center mb-1">
         <carbon:chart-line class="text-yellow-600 text-xl mr-2" />
@@ -357,7 +355,6 @@ background: linear-gradient(135deg, #065f46 0%, #10b981 50%, #6ee7b7 100%)
       <p class="text-xs text-gray-700">AI驱动的市场报告解读，自动提取关键信息，生成决策建议</p>
     </div>
   </div>
-  
   <div class="space-y-3">
     <div class="border-l-4 border-purple-500 pl-3 bg-gradient-to-r from-purple-50 to-purple-100 p-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-300">
       <div class="flex items-center mb-1">
@@ -366,7 +363,6 @@ background: linear-gradient(135deg, #065f46 0%, #10b981 50%, #6ee7b7 100%)
       </div>
       <p class="text-xs text-gray-700">钢铁生产流程、设备关系、工艺参数的图谱化展示，支持交互式探索</p>
     </div>
-    
     <div class="border-l-4 border-red-500 pl-3 bg-gradient-to-r from-red-50 to-red-100 p-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-300">
       <div class="flex items-center mb-1">
         <carbon:document class="text-red-600 text-xl mr-2" />
@@ -374,7 +370,6 @@ background: linear-gradient(135deg, #065f46 0%, #10b981 50%, #6ee7b7 100%)
       </div>
       <p class="text-xs text-gray-700">支持PDF、DOCX等多格式文档上传，自动向量化、语义检索、版本管理</p>
     </div>
-    
     <div class="border-l-4 border-indigo-500 pl-3 bg-gradient-to-r from-indigo-50 to-indigo-100 p-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-300">
       <div class="flex items-center mb-1">
         <carbon:user-admin class="text-indigo-600 text-xl mr-2" />
@@ -620,7 +615,7 @@ background: linear-gradient(135deg, #ea580c 0%, #fb923c 50%, #fbbf24 100%)
   <div class="text-center p-6 border rounded-lg">
     <carbon:user-multiple class="text-4xl text-purple-600 mb-4 mx-auto" />
     <h3 class="font-bold mb-2">多角色协作</h3>
-    <p class="text-sm text-gray-600">支持不同角色用户，提供个性化服务体验</p>
+    <p class="text-sm text-gray-600">jz</p>
   </div>
 </div>
 
