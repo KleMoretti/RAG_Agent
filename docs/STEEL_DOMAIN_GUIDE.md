@@ -20,9 +20,11 @@
 
 钢铁领域AI系统是为钢铁行业AI决策中心定制的专业模块,包含三大核心组件:
 
-1. **专业工具集**: 7种钢铁专业工具,涵盖钢种查询、工艺计算、设备诊断等
+1. **专业工具集**: 7种钢铁专业工具,涵盖钢种查询、工艺计算、设备诊断、成本分析、标准查询、知识图谱、质量分析
 2. **词汇管理系统**: 218个专业术语,支持中英文双语
 3. **知识图谱**: 实体关系抽取和查询系统
+
+**✅ 当前状态**: 所有7个工具已实现并集成到Agent中
 
 ### 系统架构
 
@@ -250,14 +252,13 @@ result = tool.run(
 
 ### 5. StandardQueryTool - 标准规范查询工具
 
-**功能**: 查询钢铁行业国家标准和国际标准。
+**功能**: 查询钢铁行业国家标准和国际标准,提供标准的详细信息。
 
 **覆盖的标准**:
 - GB/T 700-2006: 碳素结构钢
 - GB/T 1591-2008: 低合金高强度结构钢
 - GB/T 3280-2015: 不锈钢冷轧钢板和钢带
 - GB/T 699-2015: 优质碳素结构钢
-- GB/T 8163-2018: 输送流体用无缝钢管
 
 **查询内容**:
 - 标准名称和范围
@@ -265,17 +266,57 @@ result = tool.run(
 - 关键技术要求
 - 化学成分和力学性能要求
 
+**使用示例**:
+```python
+from src.agent.steel_tools import StandardQueryTool
+
+tool = StandardQueryTool()
+
+# 精确查询
+result = tool.run("GB/T 700-2006")
+
+# 返回结果
+{
+    "success": True,
+    "standard_number": "GB/T 700-2006",
+    "data": {
+        "title": "碳素结构钢",
+        "scope": "规定了碳素结构钢的牌号、尺寸、外形、技术要求等",
+        "steel_grades": ["Q195", "Q215", "Q235", "Q275"],
+        "key_requirements": [
+            "化学成分符合表1规定",
+            "力学性能符合表2规定",
+            "低温冲击试验（需方要求时）",
+            "表面质量：不得有裂纹、结疤、折叠"
+        ]
+    }
+}
+
+# 模糊查询（自动匹配年份）
+result = tool.run("GB/T 700")
+# 自动匹配到 GB/T 700-2006
+```
+
+**Agent应用场景**:
+- 用户: "Q235钢应该符合什么标准？"
+- Agent: 调用 steel_grade_query 获取标准号 → 调用 standard_query 查询标准详情
+
+---
+
 ### 6. KnowledgeGraphQueryTool - 知识图谱查询工具
 
-**功能**: 查询钢铁领域知识图谱中的实体关系。
+**功能**: 查询钢铁领域知识图谱中的实体关系,探索钢种、工艺、设备之间的关联。
 
 **支持的查询类型**:
 - `properties`: 查询实体属性
 - `relationships`: 查询实体关系
 - `similar`: 查询相似实体
 
-**使用示例**:
+#### 6.1 查询实体属性
+
 ```python
+from src.agent.steel_tools import KnowledgeGraphQueryTool
+
 tool = KnowledgeGraphQueryTool()
 
 # 查询Q235的属性
@@ -284,19 +325,70 @@ result = tool.run(
     entity_name="Q235"
 )
 
+# 返回结果
+{
+    "success": True,
+    "entity": "Q235",
+    "properties": {
+        "type": "钢种",
+        "category": "碳素结构钢",
+        "standard": "GB/T 700-2006",
+        "yield_strength": "235 MPa",
+        "applications": ["建筑", "桥梁", "车辆"],
+        "weldability": "良好"
+    }
+}
+```
+
+#### 6.2 查询实体关系
+
+```python
 # 查询Q235的关系
 result = tool.run(
     query_type="relationships",
-    entity_name="Q235",
-    relation_type="应用"
+    entity_name="Q235"
 )
 
+# 返回结果
+{
+    "success": True,
+    "entity": "Q235",
+    "relationship_count": 4,
+    "relationships": [
+        {"relation": "属于", "target": "碳素结构钢", "type": "分类"},
+        {"relation": "用于生产", "target": "建筑结构件", "type": "应用"},
+        {"relation": "可通过", "target": "热轧工艺", "type": "加工"},
+        {"relation": "符合标准", "target": "GB/T 700-2006", "type": "标准"}
+    ]
+}
+```
+
+#### 6.3 查询相似实体
+
+```python
 # 查询与304相似的钢种
 result = tool.run(
     query_type="similar",
     entity_name="304"
 )
+
+# 返回结果
+{
+    "success": True,
+    "entity": "304",
+    "similar_entities": [
+        {"entity": "304L", "similarity": 0.95, "reason": "超低碳版本，焊接性能更好"},
+        {"entity": "321", "similarity": 0.82, "reason": "同属奥氏体不锈钢"},
+        {"entity": "316", "similarity": 0.78, "reason": "添加钼，耐腐蚀性更强"}
+    ]
+}
 ```
+
+**Agent应用场景**:
+- 用户: "有什么钢种可以替代Q235？"
+- Agent: 调用 knowledge_graph_query (similar) → 推荐Q215、Q275等相似钢种
+
+---
 
 ### 7. QualityAnalysisTool - 质量分析工具
 
@@ -306,6 +398,113 @@ result = tool.run(
 - `surface`: 表面缺陷(裂纹、麻点、划伤等)
 - `dimension`: 尺寸偏差(厚度、宽度超差)
 - `performance`: 性能不达标(强度、延伸率等)
+
+#### 7.1 表面缺陷分析
+
+```python
+from src.agent.steel_tools import QualityAnalysisTool
+
+tool = QualityAnalysisTool()
+
+# 分析表面裂纹
+result = tool.run(
+    defect_type="surface",
+    description="产品表面有细小裂纹"
+)
+
+# 返回结果
+{
+    "success": True,
+    "defect_type": "表面缺陷",
+    "defect_name": "裂纹",
+    "analysis": {
+        "possible_causes": [
+            "冷却速度过快",
+            "钢中氢含量过高",
+            "热加工温度不当",
+            "成分偏析严重"
+        ],
+        "solutions": [
+            "控制冷却速度，采用缓冷或分级冷却",
+            "加强脱氢处理，控制钢液中氢含量",
+            "优化加热温度和轧制温度",
+            "改善连铸工艺，减少偏析"
+        ]
+    },
+    "severity": "根据缺陷尺寸和深度确定"
+}
+```
+
+#### 7.2 尺寸偏差分析
+
+```python
+# 分析尺寸偏差
+result = tool.run(
+    defect_type="dimension",
+    description="厚度和宽度超差",
+    thickness_deviation=0.15,  # +0.15mm
+    width_deviation=-8.0       # -8mm
+)
+
+# 返回结果
+{
+    "success": True,
+    "defect_type": "尺寸偏差",
+    "issues": [
+        {
+            "item": "厚度偏差",
+            "value": "+0.15 mm",
+            "causes": ["轧辊磨损", "AGC系统故障", "来料厚度波动"],
+            "solutions": ["更换或修磨轧辊", "校准AGC系统", "控制来料质量"]
+        },
+        {
+            "item": "宽度偏差",
+            "value": "-8.0 mm",
+            "causes": ["侧导板调整不当", "轧制温度不均"],
+            "solutions": ["调整侧导板位置", "均匀加热"]
+        }
+    ]
+}
+```
+
+#### 7.3 性能不达标分析
+
+```python
+# 分析力学性能不达标
+result = tool.run(
+    defect_type="performance",
+    description="强度不达标",
+    tensile_strength=380,      # 实测抗拉强度
+    required_tensile=420       # 要求抗拉强度
+)
+
+# 返回结果
+{
+    "success": True,
+    "defect_type": "性能不达标",
+    "issues": [
+        {
+            "property": "抗拉强度",
+            "measured": "380 MPa",
+            "required": "420 MPa",
+            "possible_causes": [
+                "化学成分不达标（C、Mn含量低）",
+                "轧制温度过高",
+                "冷却速度过慢"
+            ],
+            "solutions": [
+                "调整配料，控制化学成分",
+                "降低终轧温度",
+                "加快冷却速度"
+            ]
+        }
+    ]
+}
+```
+
+**Agent应用场景**:
+- 用户: "我们的产品表面有裂纹,是什么原因？"
+- Agent: 调用 quality_analysis (surface, "裂纹") → 列出4个可能原因和解决方案
 
 ---
 

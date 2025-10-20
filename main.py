@@ -222,19 +222,29 @@ def create_agent(llm_client: LLMClient) -> RAGAgent:
         llm_client: LLM client for the reasoning engine.
 
     Returns:
-        A configured RAGAgent.
+        A configured RAGAgent with steel industry tools.
     """
     # Create the reasoning engine with the LLM client
     reasoning_engine = ReasoningEngine(model=llm_client)
 
     # Create the RAG agent
     agent = RAGAgent(
-        llm_client=llm_client, reasoning_engine=reasoning_engine, name="RAG Assistant"
+        llm_client=llm_client,
+        reasoning_engine=reasoning_engine,
+        name="钢铁行业AI助手 (Steel Industry AI Assistant)"
     )
 
-    # Add tools to the agent
+    # Add basic tools
     agent.add_tool(SearchTool())
     agent.add_tool(CalculatorTool())
+    
+    # Add steel industry specialized tools
+    try:
+        from src.agent.steel_tools import register_steel_tools
+        tools_count = register_steel_tools(agent)
+        print(f"✅ 已注册 {tools_count} 个钢铁专业工具")
+    except Exception as e:
+        print(f"⚠️ 钢铁工具注册失败: {e}")
 
     return agent
 
@@ -583,8 +593,31 @@ try:
                     for h in hits:
                         file_id = h.get("file_id")
                         chunk_id = h.get("chunk_id")
+                        file_path = h.get("file")
+                        
+                        # 兼容旧metadata格式：从file字段推断完整内容
+                        if file_id is None and file_path:
+                            try:
+                                # 尝试从processed目录读取对应的txt文件（旧格式）
+                                file_path_obj = Path(file_path)
+                                if file_path_obj.exists() and file_path_obj.suffix == ".txt":
+                                    with file_path_obj.open("r", encoding="utf-8") as f:
+                                        full_text = f.read()
+                                    # 简单分块：按chunk_size=1000字符分割
+                                    chunk_size = 1000
+                                    if chunk_id is not None:
+                                        start = chunk_id * chunk_size
+                                        end = start + chunk_size
+                                        chunk_content = full_text[start:end]
+                                        if chunk_content.strip():
+                                            contexts.append(chunk_content.strip())
+                                        continue
+                            except Exception:
+                                pass
+                        
+                        # 新格式：使用file_id查找chunks文件
                         if file_id is None or chunk_id is None:
-                            # Fallback to preview
+                            # Fallback to preview（只有前50字符）
                             preview = h.get("preview")
                             if isinstance(preview, str) and preview:
                                 contexts.append(preview)
@@ -721,7 +754,32 @@ try:
                                 file_id = h.get("file_id")
                                 chunk_id = h.get("chunk_id")
                                 file_name = h.get("file", "unknown")
+                                file_path = h.get("file")
                                 score = h.get("score", 0.0)
+
+                                # 兼容旧metadata格式：从file字段推断完整内容
+                                if file_id is None and file_path:
+                                    try:
+                                        file_path_obj = Path(file_path)
+                                        if file_path_obj.exists() and file_path_obj.suffix == ".txt":
+                                            with file_path_obj.open("r", encoding="utf-8") as f:
+                                                full_text = f.read()
+                                            chunk_size = 1000
+                                            if chunk_id is not None:
+                                                start = chunk_id * chunk_size
+                                                end = start + chunk_size
+                                                chunk_content = full_text[start:end]
+                                                if chunk_content.strip():
+                                                    contexts.append(chunk_content.strip())
+                                                    sources.append({
+                                                        "file": file_name,
+                                                        "chunk_id": chunk_id,
+                                                        "score": score,
+                                                        "preview": chunk_content[:200]
+                                                    })
+                                                continue
+                                    except Exception:
+                                        pass
 
                                 # 尝试加载完整内容
                                 content = ""

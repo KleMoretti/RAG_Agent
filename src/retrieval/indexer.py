@@ -23,10 +23,15 @@ class Indexer:
         self.chunker = chunker
         self.preprocessor = preprocessor
 
-    def index_file(self, file_path: str | Path, file_id: str | None = None) -> List[int]:
+    def index_file(self, file_path: str | Path, file_id: str | None = None, file_name: str | None = None) -> List[int]:
         """
         索引单个文件，返回新加向量的 id 列表。
         读取原始文本，预处理、分块、嵌入、写入向量库。
+        
+        Args:
+            file_path: 文件路径
+            file_id: 文件ID（用于查找对应的chunks文件），如果未提供则使用文件名
+            file_name: 原始文件名（用于显示），如果未提供则使用file_path.name
         """
         file_path = Path(file_path)
         with file_path.open("r", encoding="utf-8") as f:
@@ -38,12 +43,21 @@ class Indexer:
             return []
         vectors = self.embedder.encode(chunks, normalize=True)
         metadatas = []
+        
+        # 使用文件名作为file_id和file_name的默认值
+        if file_id is None:
+            file_id = file_path.name
+        if file_name is None:
+            file_name = file_path.name
+        
         for i, chunk in enumerate(chunks):
             metadatas.append({
                 "file": str(file_path),
                 "chunk_id": i,
                 "hash": hash(chunk),
                 "preview": chunk[:50],
+                "file_id": file_id,
+                "file_name": file_name,
             })
         return self.store.add(vectors, metadatas)
 
