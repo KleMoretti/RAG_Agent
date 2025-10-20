@@ -106,6 +106,8 @@ class DataLoader:
 
     def _postprocess_pdf_text(self, text: str) -> str:
         """修复 PDF 常见文本问题：
+        - 全角字符转半角（数字、英文字母、标点）
+        - 连续英文字母智能分词（使用 wordninja）
         - 英文单词被拆成单字母并以空格分隔，例如 "D e v e l o p" -> "Develop"
         - 行尾连字符导致的错误断词："hyphen-\n ated" -> "hyphenated"
         - 统一空白
@@ -119,14 +121,17 @@ class DataLoader:
         if not text:
             return ""
 
-        # 修复连字符 + 换行的断词（包括 Windows/Unix 换行）
+        # 1. 全角字符转半角（优先处理，避免影响后续正则）
+        text = self._convert_fullwidth_to_halfwidth(text)
+
+        # 2. 修复连字符 + 换行的断词（包括 Windows/Unix 换行）
         # e.g. "infor-\nmation" -> "information"
         text = re.sub(r"(\w)-\s*\n\s*(\w)", r"\1\2", text)
 
-        # 统一换行为空格，避免段内断行引入多余分词
+        # 3. 统一换行为空格，避免段内断行引入多余分词
         text = re.sub(r"\s*\n\s*", " ", text)
 
-        # 合并被空格拆开的纯字母序列：
+        # 4. 合并被空格拆开的纯字母序列：
         # 将 "D e e p  L e a r n i n g" -> "Deep Learning"
         def _merge_spaced_letters(match: re.Match[str]) -> str:
             spaced = match.group(0)
@@ -137,8 +142,82 @@ class DataLoader:
         # 模式匹配：至少三个单字母被空格分开的序列，尽量避免缩写误伤
         text = re.sub(r"\b(?:[A-Za-z]\s+){2,}[A-Za-z]\b", _merge_spaced_letters, text)
 
-        # 压缩多余空白
+        # 5. 智能英文分词（处理连续英文字母无空格的情况）
+        text = self._smart_word_segmentation(text)
+
+        # 6. 压缩多余空白
         text = re.sub(r"\s+", " ", text).strip()
+        return text
+
+    def _convert_fullwidth_to_halfwidth(self, text: str) -> str:
+        """将全角字符转换为半角字符。
+        
+        转换范围：
+        - 全角数字 (０-９) -> 半角数字 (0-9)
+        - 全角英文字母 (Ａ-Ｚ, ａ-ｚ) -> 半角英文字母 (A-Z, a-z)
+        - 全角空格 (　) -> 半角空格 ( )
+        - 常见全角标点 -> 半角标点
+        
+        Args:
+            text: 包含全角字符的文本
+            
+        Returns:
+            转换后的半角文本
+        """
+        if not text:
+            return ""
+        
+        result = []
+        for char in text:
+            code = ord(char)
+            # 全角字符的 Unicode 范围：0xFF01-0xFF5E（对应半角 0x0021-0x007E）
+            # 全角空格：0x3000
+            if code == 0x3000:  # 全角空格
+                result.append(' ')
+            elif 0xFF01 <= code <= 0xFF5E:  # 全角ASCII字符
+                # 转换为半角：全角码 - 0xFEE0 = 半角码
+                result.append(chr(code - 0xFEE0))
+            else:
+                result.append(char)
+        
+        return ''.join(result)
+
+    def _smart_word_segmentation(self, text: str) -> str:
+        """智能英文分词，处理连续英文字母无空格的情况。
+        
+        使用 wordninja 对长连续英文字符串（10+ 字符）进行分词。
+        例如：ThisworkwasfinanciallysupportedbytheNational 
+             -> This work was financially supported by the National
+        
+        Args:
+            text: 待处理文本
+            
+        Returns:
+            分词后的文本
+        """
+        try:
+            import wordninja
+        except ImportError:
+            # 如果 wordninja 未安装，直接返回原文本
+            return text
+        
+        def _segment_word(match: re.Match[str]) -> str:
+            """对匹配到的连续英文字符串进行分词"""
+            word = match.group(0)
+            # 只对长字符串（10+ 字符）进行分词，避免误伤正常单词
+            if len(word) >= 10:
+                try:
+                    segmented = wordninja.split(word)
+                    return ' '.join(segmented)
+                except Exception:
+                    # 分词失败则返回原字符串
+                    return word
+            return word
+        
+        # 匹配连续的英文字母序列（大小写混合）
+        # 只处理长序列，避免误伤正常单词如 "the", "and"
+        text = re.sub(r'\b[A-Za-z]{10,}\b', _segment_word, text)
+        
         return text
 
     def _load_word(self, file_path: str) -> str:

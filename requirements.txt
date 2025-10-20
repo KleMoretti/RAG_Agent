@@ -29,3 +29,4 @@ chromadb
 huggingface-hub
 tokenizers
 transformers
+wordninja  # 英文智能分词工具，用于处理连续无空格的英文字符串
