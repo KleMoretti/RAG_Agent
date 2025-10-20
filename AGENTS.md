@@ -48,57 +48,6 @@ python scripts/db_migrate.py status        # 查看数据库状态
 1. Setup: `python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt` (Python 3.10+)
 2. Start: `python manage.py start all` or `python manage.py start backend` (FastAPI on port 8000)
 3. Tests: all `pytest -q`; single file `pytest tests/integration.py`; single test `pytest tests/integration.py::test_name`; keyword `pytest -k search`.
-
-**📊 Production Mode (with real data)**:
-- 💹 **Live Price Feed**: Real-time iron ore, coal, steel product prices from market APIs
-- 📈 **Interactive Price Charts**: Historical trends with predictive forecasting
-- 🌐 **Supply Chain Monitoring**: Track raw material availability and logistics status
-- 📊 **Cost Impact Calculator**: Real-time calculation of price changes on production costs
-- 🔔 **Smart Price Alerts**: ML-filtered alerts for significant market movements
-
-**🎭 Demo Mode (without real data)**:
-- 📰 Industry news and report aggregation (uploaded documents)
-- 📊 **Sample Price Data**: Historical datasets for demonstration (2020-2024 trends)
-- 🎲 **Scenario Simulation**: Pre-configured market scenarios (bull/bear markets, supply shocks)
-- 📈 **Static Visualizations**: Sample charts showing typical price patterns
-
-**🤖 Agent Capabilities (both modes)**:
-- 🤖 AI-powered insight extraction from market reports and real-time data
-- 📊 Document-based trend analysis (AI summarizes price reports, market analyses)
-- 🆕 **Multi-document Synthesis**: Agent combines insights from multiple reports into unified analysis
-- 🆕 **Trend Narrative Generation**: AI writes executive summaries from raw data/reports
-- 🆕 **Competitive Intelligence Extraction**: Auto-extract competitor info from news/reports
-- 🆕 **Custom Alert Builder**: Define keywords/topics, Agent monitors new uploads/data and notifies
-- 🆕 **What-If Scenario Analysis**: "What if iron ore price increases 20%?" - Agent reasons through implications
-- 🆕 **Report Comparison Tool**: Side-by-side comparison of different analyst reports with discrepancy highlights
-- 🆕 **Procurement Recommendation**: Agent suggests optimal buying windows based on price trends and inventory
-- 🆕 **Market Event Correlation**: Link price movements to news events using NLP analysisstant
-
-**📊 Production Mode (with real data)**:
-- 🏭 **Real-time Equipment Status**: Live data from sensors (temperature, vibration, pressure)
-- 📈 **Health Score Dashboard**: Equipment health trends with predictive analytics
-- ⚠️ **Anomaly Detection**: ML-based detection of abnormal patterns triggering Agent investigation
-- 📅 **Smart Maintenance Scheduling**: AI suggests optimal maintenance timing based on usage patterns
-- 🔔 **Alert-triggered Q&A**: Automatic Agent responses when equipment alerts occur
-
-**🎭 Demo Mode (without real data)**:
-- 📋 Equipment knowledge base (manuals, fault logs, maintenance guides)
-- 🎲 **Simulated Equipment Status**: Sample data showing typical operational scenarios
-- 📊 **Historical Case Studies**: Pre-loaded fault scenarios for interactive demonstration
-- 🎬 **Interactive Scenarios**: "What-if" simulations using documented cases
-
-**🤖 Agent Capabilities (both modes)**:
-- 🔧 Conversational fault diagnosis based on symptoms
-- 📖 Retrieve relevant troubleshooting procedures from documents
-- 💡 Multi-step reasoning for complex equipment issues
-- 🆕 **Symptom-to-Solution Mapping**: Agent asks clarifying questions to narrow down fault causes
-- 🆕 **Maintenance Procedure Generator**: Auto-generate step-by-step repair guides from manuals
-- 🆕 **Historical Case Retrieval**: "Similar issues in the past" based on RAG search
-- 🆕 **Safety Protocol Advisor**: Auto-extract and highlight safety warnings from manuals
-- 🆕 **Parts Cross-reference**: Agent helps find alternative part numbers across different suppliers
-- 🆕 **Diagnostic Decision Tree**: Interactive fault diagnosis with yes/no questions
-- 🆕 **Root Cause Analysis**: Agent guides users through 5-Whys methodology with knowledge base supportAPI (if FastAPI app in `main.py`): `uvicorn main:app --reload`.
-3. Tests: all `pytest -q`; single file `pytest tests/integration.py`; single test `pytest tests/integration.py::test_name`; keyword `pytest -k search`.
 4. Async: use `pytest-asyncio`; mark coroutines with `@pytest.mark.asyncio`.
 5. Imports order: stdlib, third-party, local (no wildcards); blank line between groups.
 6. Types: annotate all public functions; prefer `list[str]` / `str | None`; no implicit Any.
@@ -467,58 +416,7 @@ python scripts/db_migrate.py status        # 查看数据库状态
     - ✅ Enforce code coverage thresholds
     - ✅ Block merge if build fails
 
-### Internationalization (i18n)
 
-37. **Language Configuration**
-    - ✅ **Default Language**: Chinese (zh-CN) as primary language
-    - ✅ **Secondary Language**: English (en-US) for international support
-    - ✅ Use custom `useTranslation` hook for all translatable text
-    - ✅ Store language preference in `uiStore.language` with localStorage persistence
-
-38. **Translation Management**
-    ```typescript
-    // lib/i18n/locales/zh-CN.ts
-    export const zhCN = {
-      common: {
-        login: '登录',
-        logout: '退出',
-        submit: '提交',
-        cancel: '取消',
-      },
-      auth: {
-        username: '用户名',
-        password: '密码',
-        loginTitle: '钢铁行业 AI 决策中心',
-      },
-      // ... more translations
-    };
-
-    // lib/i18n/locales/en-US.ts
-    export const enUS = {
-      common: {
-        login: 'Login',
-        logout: 'Logout',
-        submit: 'Submit',
-        cancel: 'Cancel',
-      },
-      auth: {
-        username: 'Username',
-        password: 'Password',
-        loginTitle: 'Steel Industry AI Hub',
-      },
-      // ... more translations
-    };
-    ```
-
-39. **i18n Best Practices**
-    - ✅ All user-facing text must be translatable (no hardcoded strings)
-    - ✅ Use semantic keys: `auth.loginButton` not `button1`
-    - ✅ Support Chinese technical terminology with English equivalents
-    - ✅ Date/number formatting according to locale (date-fns with locale)
-    - ✅ RTL support not required (Chinese/English are LTR)
-    - ❌ Never mix languages in the same UI component
-
----
 
 ## Frontend Architecture Design (Steel Industry AI Decision Hub)
 
@@ -584,6 +482,25 @@ python scripts/db_migrate.py status        # 查看数据库状态
   - User-uploaded documents: Support both Chinese and English analysis
   - AI responses: Match user's selected language preference
   - Knowledge base: Multilingual document indexing with language detection
+- **Translation Management**:
+  ```typescript
+  // lib/i18n/locales/zh-CN.ts
+  export const zhCN = {
+    common: { login: '登录', logout: '退出', submit: '提交', cancel: '取消' },
+    auth: { username: '用户名', password: '密码', loginTitle: '钢铁行业 AI 决策中心' },
+  };
+  // lib/i18n/locales/en-US.ts
+  export const enUS = {
+    common: { login: 'Login', logout: 'Logout', submit: 'Submit', cancel: 'Cancel' },
+    auth: { username: 'Username', password: 'Password', loginTitle: 'Steel Industry AI Hub' },
+  };
+  ```
+- **Best Practices**:
+  - ✅ All user-facing text must be translatable (no hardcoded strings)
+  - ✅ Use semantic keys: `auth.loginButton` not `button1`
+  - ✅ Support Chinese technical terminology with English equivalents
+  - ✅ Date/number formatting according to locale (date-fns with locale)
+  - ❌ Never mix languages in the same UI component
 
 ### Directory Structure
 
@@ -667,10 +584,10 @@ frontend/
 - 🆕 **Question Refinement**: Agent helps rephrase vague questions for better results
 
 #### 3. Intelligent Equipment Maintenance Assistant
-- � Equipment knowledge base (manuals, fault logs, maintenance guides)
+- 📋 Equipment knowledge base (manuals, fault logs, maintenance guides)
 - 🔧 Conversational fault diagnosis based on symptoms
 - 📖 Retrieve relevant troubleshooting procedures from documents
-- � Multi-step reasoning for complex equipment issues
+- 💡 Multi-step reasoning for complex equipment issues
 - 🆕 **Symptom-to-Solution Mapping**: Agent asks clarifying questions to narrow down fault causes
 - 🆕 **Maintenance Procedure Generator**: Auto-generate step-by-step repair guides from manuals
 - 🆕 **Historical Case Retrieval**: "Similar issues in the past" based on RAG search
@@ -679,7 +596,7 @@ frontend/
 - 🆕 **Diagnostic Decision Tree**: Interactive fault diagnosis with yes/no questions
 
 #### 4. Market Intelligence & Analysis Assistant
-- � Industry news and report aggregation (uploaded documents)
+- 📰 Industry news and report aggregation (uploaded documents)
 - 📊 Document-based trend analysis (AI summarizes price reports, market analyses)
 - 🤖 AI-powered insight extraction from market reports
 - 🆕 **Multi-document Synthesis**: Agent combines insights from multiple reports into unified analysis
