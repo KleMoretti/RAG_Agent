@@ -409,8 +409,8 @@ def list_files(
         from pathlib import Path
         import os
 
-        # 获取文件目录
-        files_dir = Path("data/processed")
+        # 获取文件目录 - 从 data/raw 读取原始文件
+        files_dir = Path("data/raw")
         if not files_dir.exists():
             return FileListResponse(
                 data=[],
@@ -419,20 +419,37 @@ def list_files(
 
         # 获取所有文件
         all_files = []
+        processed_dir = Path("data/processed")
+
         for file_path in files_dir.glob("*"):
             if file_path.is_file():
                 stat = file_path.stat()
+
+                # 检查是否已处理（存在对应的 .done 文件）
+                file_id = file_path.name
+                done_marker = processed_dir / f"{file_id}.done"
+                is_processed = done_marker.exists()
+
+                # 尝试获取原始文件名（从 file_id 中提取）
+                # file_id 格式: {hash}_{original_name}
+                display_name = file_id
+                if "_" in file_id:
+                    # 移除前缀哈希
+                    parts = file_id.split("_", 1)
+                    if len(parts) == 2:
+                        display_name = parts[1]
+
                 import uuid
 
                 all_files.append(
                     FileInfo(
-                        id=str(uuid.uuid4()),
-                        fileName=file_path.name,
+                        id=file_id,  # 使用实际文件名作为ID，便于后续操作
+                        fileName=display_name,
                         fileSize=stat.st_size,
                         uploadDate=datetime.fromtimestamp(stat.st_mtime).isoformat(),
                         uploaderName="系统",  # 暂时无法获取上传者信息
                         filePath=str(file_path),
-                        isProcessed=True,
+                        isProcessed=is_processed,
                         chunkCount=None,
                     )
                 )
@@ -471,7 +488,7 @@ def list_files(
 def delete_file(
     file_name: str, db: Session = Depends(get_db), admin: User = Depends(require_admin)
 ):
-    """删除文件"""
+    """删除文件（包括 data/raw 原始文件和 data/processed 处理文件）"""
     try:
         from pathlib import Path
         import os
@@ -480,14 +497,26 @@ def delete_file(
         if ".." in file_name or "/" in file_name or "\\" in file_name:
             raise HTTPException(status_code=400, detail="无效的文件名")
 
-        file_path = Path("data/processed") / file_name
-        if not file_path.exists():
+        # 删除 data/raw 中的原始文件
+        raw_path = Path("data/raw") / file_name
+        if not raw_path.exists():
             raise HTTPException(status_code=404, detail="文件不存在")
 
-        # 删除文件
-        file_path.unlink()
+        raw_path.unlink()
 
-        logger.info(f"File {file_name} deleted by admin {admin.username}")
+        # 删除 data/processed 中的相关文件
+        processed_dir = Path("data/processed")
+        chunks_file = processed_dir / f"{file_name}.chunks.jsonl"
+        done_file = processed_dir / f"{file_name}.done"
+
+        if chunks_file.exists():
+            chunks_file.unlink()
+        if done_file.exists():
+            done_file.unlink()
+
+        logger.info(
+            f"File {file_name} and its processed files deleted by admin {admin.username}"
+        )
         return {"message": "文件删除成功"}
 
     except HTTPException:
@@ -503,7 +532,7 @@ def batch_delete_files(
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
-    """批量删除文件"""
+    """批量删除文件（包括原始文件和处理文件）"""
     try:
         from pathlib import Path
 
@@ -517,15 +546,28 @@ def batch_delete_files(
                     failed.append({"fileName": file_name, "reason": "无效的文件名"})
                     continue
 
-                file_path = Path("data/processed") / file_name
-                if not file_path.exists():
+                # 删除 data/raw 中的原始文件
+                raw_path = Path("data/raw") / file_name
+                if not raw_path.exists():
                     failed.append({"fileName": file_name, "reason": "文件不存在"})
                     continue
 
-                # 删除文件
-                file_path.unlink()
+                raw_path.unlink()
+
+                # 删除 data/processed 中的相关文件
+                processed_dir = Path("data/processed")
+                chunks_file = processed_dir / f"{file_name}.chunks.jsonl"
+                done_file = processed_dir / f"{file_name}.done"
+
+                if chunks_file.exists():
+                    chunks_file.unlink()
+                if done_file.exists():
+                    done_file.unlink()
+
                 success.append(file_name)
-                logger.info(f"File {file_name} deleted by admin {admin.username}")
+                logger.info(
+                    f"File {file_name} and its processed files deleted by admin {admin.username}"
+                )
 
             except Exception as e:
                 logger.error(f"Error deleting file {file_name}: {e}")
@@ -538,6 +580,125 @@ def batch_delete_files(
     except Exception as e:
         logger.error(f"Error in batch delete: {e}")
         raise HTTPException(status_code=500, detail="批量删除失败")
+
+
+@router.get("/files/{file_name}/preview")
+def preview_file(
+    file_name: str, db: Session = Depends(get_db), admin: User = Depends(require_admin)
+):
+    """预览文件内容"""
+    try:
+        from pathlib import Path
+
+        # 安全验证文件名
+        if ".." in file_name or "/" in file_name or "\\" in file_name:
+            raise HTTPException(status_code=400, detail="无效的文件名")
+
+        # 读取原始文件
+        raw_path = Path("data/raw") / file_name
+        if not raw_path.exists():
+            raise HTTPException(status_code=404, detail="文件不存在")
+
+        # 尝试读取文件内容（限制大小）
+        MAX_PREVIEW_SIZE = 1024 * 1024  # 1MB
+        file_size = raw_path.stat().st_size
+
+        if file_size > MAX_PREVIEW_SIZE:
+            # 对于大文件，只读取前 1MB
+            with raw_path.open("rb") as f:
+                content = f.read(MAX_PREVIEW_SIZE)
+            is_truncated = True
+        else:
+            with raw_path.open("rb") as f:
+                content = f.read()
+            is_truncated = False
+
+        # 尝试解码为文本
+        try:
+            text_content = content.decode("utf-8")
+        except UnicodeDecodeError:
+            try:
+                text_content = content.decode("gbk")
+            except UnicodeDecodeError:
+                text_content = (
+                    f"[二进制文件，无法预览文本内容]\n文件大小: {file_size} 字节"
+                )
+
+        # 读取处理后的分块信息
+        processed_dir = Path("data/processed")
+        chunks_file = processed_dir / f"{file_name}.chunks.jsonl"
+        chunks = []
+
+        if chunks_file.exists():
+            import json
+
+            try:
+                with chunks_file.open("r", encoding="utf-8") as f:
+                    for line in f:
+                        chunk_data = json.loads(line.strip())
+                        chunks.append(
+                            {
+                                "content": chunk_data.get("content", "")[:100],
+                                "type": "text",
+                                "length": chunk_data.get("length", 0),
+                            }
+                        )
+            except Exception:
+                pass
+
+        return {
+            "content": text_content,
+            "contentType": "text/plain",
+            "chunks": chunks,
+            "isTruncated": is_truncated,
+            "fileSize": file_size,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error previewing file {file_name}: {e}")
+        raise HTTPException(status_code=500, detail="预览文件失败")
+
+
+@router.get("/files/{file_name}/download")
+def download_file(
+    file_name: str, db: Session = Depends(get_db), admin: User = Depends(require_admin)
+):
+    """下载文件"""
+    try:
+        from pathlib import Path
+        from fastapi.responses import FileResponse
+
+        # 安全验证文件名
+        if ".." in file_name or "/" in file_name or "\\" in file_name:
+            raise HTTPException(status_code=400, detail="无效的文件名")
+
+        # 读取原始文件
+        raw_path = Path("data/raw") / file_name
+        if not raw_path.exists():
+            raise HTTPException(status_code=404, detail="文件不存在")
+
+        # 提取显示文件名（移除哈希前缀）
+        display_name = file_name
+        if "_" in file_name:
+            parts = file_name.split("_", 1)
+            if len(parts) == 2:
+                display_name = parts[1]
+
+        logger.info(f"File {file_name} downloaded by admin {admin.username}")
+
+        return FileResponse(
+            path=str(raw_path),
+            filename=display_name,
+            media_type="application/octet-stream",
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error downloading file {file_name}: {e}")
+        raise HTTPException(status_code=500, detail="下载文件失败")
 
 
 # 专业词汇管理API

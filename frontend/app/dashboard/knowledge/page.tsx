@@ -54,6 +54,7 @@ import type { DocumentMetadata } from "@/lib/types/api";
 import { formatBytes, formatDate } from "@/lib/utils";
 import { PAGINATION } from "@/lib/constants";
 import { DocumentEditDialog } from "@/components/knowledge/DocumentEditDialog";
+import { FileUploadDialog } from "@/components/knowledge/FileUploadDialog";
 
 export default function KnowledgeBasePage() {
     const [search, setSearch] = useState("");
@@ -69,6 +70,7 @@ export default function KnowledgeBasePage() {
     );
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [docToEdit, setDocToEdit] = useState<DocumentMetadata | null>(null);
+    const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
 
     const queryClient = useQueryClient();
 
@@ -80,7 +82,7 @@ export default function KnowledgeBasePage() {
 
     // 删除单个文档
     const deleteMutation = useMutation({
-        mutationFn: (fileName: string) => deleteDocument(fileName),
+        mutationFn: (fileId: string) => deleteDocument(fileId),
         onSuccess: () => {
             toast.success("删除成功", {
                 description: "文档已成功删除",
@@ -125,7 +127,7 @@ export default function KnowledgeBasePage() {
 
     // 重新索引文档
     const reindexMutation = useMutation({
-        mutationFn: (fileName: string) => reindexDocument(fileName),
+        mutationFn: (fileId: string) => reindexDocument(fileId),
         onSuccess: (data) => {
             toast.success("重新索引成功", {
                 description: `文档已重新索引，共 ${data.chunkCount} 个文本块`,
@@ -177,7 +179,7 @@ export default function KnowledgeBasePage() {
         setPreviewContent("加载中...");
 
         try {
-            const preview = await previewDocument(doc.fileName);
+            const preview = await previewDocument(doc.id);
             if (preview.chunks && preview.chunks.length > 0) {
                 setPreviewContent(
                     preview.chunks.map((c) => c.content).join("\n\n"),
@@ -198,7 +200,7 @@ export default function KnowledgeBasePage() {
     // 处理下载
     const handleDownload = async (doc: DocumentMetadata) => {
         try {
-            const blob = await downloadDocument(doc.fileName);
+            const blob = await downloadDocument(doc.id);
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
@@ -226,7 +228,7 @@ export default function KnowledgeBasePage() {
     // 处理删除确认
     const handleDeleteConfirm = () => {
         if (docToDelete) {
-            deleteMutation.mutate(docToDelete.fileName);
+            deleteMutation.mutate(docToDelete.id);
         }
     };
 
@@ -234,13 +236,13 @@ export default function KnowledgeBasePage() {
     const handleBatchDelete = () => {
         if (selectedDocs.size === 0) return;
 
-        const fileNames =
+        const fileIds =
             data?.data
                 ?.filter((doc) => selectedDocs.has(doc.id))
-                .map((doc) => doc.fileName) || [];
+                .map((doc) => doc.id) || [];
 
-        if (fileNames.length > 0) {
-            batchDeleteMutation.mutate(fileNames);
+        if (fileIds.length > 0) {
+            batchDeleteMutation.mutate(fileIds);
         }
     };
 
@@ -252,7 +254,7 @@ export default function KnowledgeBasePage() {
 
     // 处理重新索引
     const handleReindex = (doc: DocumentMetadata) => {
-        reindexMutation.mutate(doc.fileName);
+        reindexMutation.mutate(doc.id);
     };
 
     const documents = data?.data || [];
@@ -297,7 +299,7 @@ export default function KnowledgeBasePage() {
                                 </Button>
                             )}
                         </div>
-                        <Button>
+                        <Button onClick={() => setIsUploadDialogOpen(true)}>
                             <Upload className="h-4 w-4 mr-2" />
                             上传文档
                         </Button>
@@ -606,6 +608,12 @@ export default function KnowledgeBasePage() {
                 document={docToEdit}
                 open={isEditDialogOpen}
                 onOpenChange={setIsEditDialogOpen}
+            />
+
+            {/* 上传对话框 */}
+            <FileUploadDialog
+                open={isUploadDialogOpen}
+                onOpenChange={setIsUploadDialogOpen}
             />
         </div>
     );

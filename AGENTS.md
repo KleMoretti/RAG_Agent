@@ -760,7 +760,10 @@ frontend/
 - `POST /api/auth/login` - User login
 - `POST /api/auth/register` - User registration
 - `POST /api/chat` - Send chat message
-- `POST /api/upload` - File upload
+- `POST /api/upload` - File upload (multipart/form-data, field: `file`, max 50MB)
+  - Supported formats: PDF, DOC, DOCX, TXT, MD, CSV, JSON, XML
+  - Auto-indexes into vector store after upload
+  - Returns: `{success, message, fileId, fileName, fileSize, contentType, chunks}`
 - `GET /api/admin/users` - Get user list
 - `PUT /api/admin/users/:id` - Update user
 - `GET /api/admin/files` - Get file list (with pagination & search)
@@ -868,6 +871,53 @@ interface DataConnector {
 5. **Real-time + Historical**: Combines live data analysis with document-based knowledge
 6. **Graceful Degradation**: Full functionality in demo mode for testing and training
 7. **Incremental Deployment**: Start with documents, add data sources progressively
+
+---
+
+## Knowledge Base File Upload
+
+### 功能说明
+知识库页面提供拖拽上传和点击上传两种方式，支持批量上传多个文件。
+
+**支持的文件格式**：
+- 文档：`.pdf`, `.doc`, `.docx`, `.txt`, `.md`
+- 数据：`.csv`, `.json`, `.xml`
+
+**文件大小限制**：50MB
+
+**上传流程**：
+1. 点击"上传文档"按钮或拖拽文件到上传区域
+2. 自动验证文件类型和大小
+3. 显示上传进度条（实时进度）
+4. 上传完成后自动索引到向量库
+5. 刷新文档列表显示新文件
+
+**前端组件**：
+- `FileUploadDialog` (`frontend/components/knowledge/FileUploadDialog.tsx`)
+  - 拖拽上传区域
+  - 多文件批量上传
+  - 实时进度显示
+  - 错误处理和重试功能
+  - 上传统计信息
+
+**后端接口**：
+- `POST /api/upload`
+- Content-Type: `multipart/form-data`
+- Form field: `file`
+- 自动保存到 `data/raw/`
+- 自动处理并索引到 `data/processed/` 和 FAISS 向量库
+
+**使用示例**：
+```typescript
+import { uploadChatFile } from '@/lib/api/files';
+
+const handleUpload = async (file: File) => {
+  const result = await uploadChatFile(file, (progress) => {
+    console.log(`Upload progress: ${progress.loaded}/${progress.total}`);
+  });
+  console.log('Uploaded:', result.fileId);
+};
+```
 
 ---
 
@@ -1018,14 +1068,99 @@ export interface BatchDeleteResponse {
 
 ### 文件上传问题
 
+#### 问题：上传后显示重复文件或文件名包含哈希前缀
+**症状**：
+- 上传一个文件后，列表中显示两个文件
+- 其中一个文件大小为 2 Bytes（.done 文件）
+- 文件名包含 `.chunks.jsonl` 扩展名
+- 预览/下载失败，返回 404 错误
+
+**根本原因**：
+1. `list_files` 接口原本从 `data/processed` 读取，列出了内部处理文件（.chunks.jsonl, .done）
+2. 文件 ID 使用 `doc.fileName`（显示名称）而不是完整的 `doc.id`（包含哈希前缀）
+
+**解决方案（已修复）**：
+1. **后端修改** (`src/api/admin.py`):
+   - `list_files` 改为从 `data/raw` 读取原始文件
+   - 过滤掉内部处理文件（.chunks.jsonl, .done）
+   - 使用实际文件名作为 ID，提取显示名称（移除哈希前缀）
+   - `delete_file` 同时删除 `data/raw` 和 `data/processed` 中的文件
+   - 新增 `preview_file` 和 `download_file` 接口
+
+2. **前端修改** (`frontend/app/dashboard/knowledge/page.tsx`):
+   - 所有 API 调用使用 `doc.id`（完整文件 ID）而不是 `doc.fileName`
+   - 预览：`previewDocument(doc.id)`
+   - 下载：`downloadDocument(doc.id)`
+   - 删除：`deleteDocument(doc.id)`
+   - 批量删除：使用 `doc.id` 数组
+   - 重新索引：`reindexDocument(doc.id)`
+
+**文件存储结构**：
+```
+data/
+├── raw/                          # 原始上传文件
+│   └── {hash}_{filename}         # 完整 file_id
+└── processed/                    # 处理后的文件
+    ├── {hash}_{filename}.chunks.jsonl  # 分块数据
+    └── {hash}_{filename}.done          # 处理完成标记
+```
+
+**API 端点更新**：
+- `GET /api/admin/files` - 从 data/raw 读取，返回 `{id: 完整file_id, fileName: 显示名称}`
+- `GET /api/admin/files/{file_name}/preview` - 预览原始文件 + 分块信息
+- `GET /api/admin/files/{file_name}/download` - 下载原始文件
+- `DELETE /api/admin/files/{file_name}` - 删除原始文件 + 处理文件
+
+#### 问题：上传按钮点击无反应
+**解决方案**：
+1. 检查 `FileUploadDialog` 组件是否正确导入
+2. 确认 `isUploadDialogOpen` 状态已添加
+3. 验证按钮 `onClick` 事件绑定正确
+
+#### 问题：文件上传失败
+**常见原因**：
+1. 文件大小超过 50MB 限制
+2. 文件格式不支持（只支持 PDF, DOC, DOCX, TXT, MD, CSV, JSON, XML）
+3. 后端服务未启动或无权限
+4. 磁盘空间不足
+
+**解决方案**：
+1. 检查文件大小：`ls -lh data/raw/`
+2. 验证文件格式扩展名
+3. 检查后端日志是否有错误
+4. 确认 `data/raw/` 和 `data/processed/` 目录存在且可写
+
 #### 问题：文件上传后无法检索
 **解决方案**：
-1. 重建 RAG 索引：
+1. 检查向量索引是否成功：
+   ```bash
+   python scripts/rag_cli.py info
+   ```
+2. 重建 RAG 索引：
    ```bash
    python scripts/rag_cli.py build --rebuild
    ```
-2. 检查文档是否在 `data/processed` 目录
-3. 验证文件格式是否支持（PDF、DOCX、TXT、MD）
+3. 检查文档是否在 `data/processed` 目录
+4. 验证 `.done` 标记文件是否存在
+
+#### 问题：上传进度条不显示
+**解决方案**：
+1. 检查 `Progress` 组件是否正确安装
+2. 验证 Axios `onUploadProgress` 回调是否正确
+3. 检查浏览器控制台是否有 JavaScript 错误
+
+#### 问题：预览/下载返回 404 Not Found
+**症状**：
+```
+GET /api/admin/files/xxx.chunks.jsonl/preview HTTP/1.1" 404 Not Found
+```
+
+**原因**：前端使用 `doc.fileName`（显示名称）而不是 `doc.id`（完整文件 ID）
+
+**解决方案**：
+1. 确保前端所有文件操作使用 `doc.id`
+2. 检查后端接口从 `data/raw` 读取文件
+3. 验证文件 ID 格式正确：`{hash}_{original_name}`
 
 ### 通用调试步骤
 
