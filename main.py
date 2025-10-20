@@ -412,6 +412,15 @@ try:
     except Exception as e:
         print(f"❌ Failed to mount preset questions routes: {e}")
 
+    # Mount knowledge graph routes
+    try:
+        from src.knowledge_graph.api import router as knowledge_graph_router
+
+        app.include_router(knowledge_graph_router)
+        print(f"✅ Knowledge graph routes mounted at {knowledge_graph_router.prefix}")
+    except Exception as e:
+        print(f"❌ Failed to mount knowledge graph routes: {e}")
+
     _app_agents: dict[str, RAGAgent] = {}
 
     def _get_agent(session_id: str | None) -> RAGAgent:
@@ -422,7 +431,10 @@ try:
         api_key = os.environ.get("QWEN_API_KEY") or os.environ.get("OPENAI_API_KEY")
         if api_key:
             cfg = OpenAIConfig(
-                model_name=os.environ.get("LLM_MODEL", "qwen-plus"), api_key=api_key
+                model_name=os.environ.get("LLM_MODEL", "qwen-plus"),
+                api_key=api_key,
+                max_tokens=10000,  # 增加token限制，支持复杂的知识图谱回答
+                temperature=0.7,
             )
             llm = OpenAIClient(cfg)
         else:

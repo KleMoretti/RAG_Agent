@@ -41,6 +41,41 @@ python scripts/db_migrate.py add-prompts   # 添加 Prompt 管理表
 python scripts/db_migrate.py status        # 查看数据库状态
 ```
 
+### Knowledge Graph Management
+```bash
+# 知识图谱构建（从上传的文档自动提取实体和关系）
+python scripts/init_steel_knowledge_graph.py
+
+# 知识图谱查询（通过 Agent 工具）
+# Agent 会自动使用 KnowledgeGraphQueryTool 查询知识图谱
+# 支持的查询类型：
+# - statistics: 获取知识图谱统计信息（实体数量、关系数量等）
+# - search: 搜索实体（模糊匹配）
+# - properties: 查询实体属性
+# - relationships: 查询实体关系
+# - similar: 查询相似实体
+# - steel_composition: 查询钢种成分
+
+# 知识图谱 API 端点
+# GET /api/knowledge-graph/statistics         - 获取统计信息
+# POST /api/knowledge-graph/search/entities   - 搜索实体
+# GET /api/knowledge-graph/entities/{id}      - 获取实体详情
+# POST /api/knowledge-graph/entities/{id}/related - 获取相关实体
+```
+
+**知识图谱数据位置**：
+- 数据文件：`data/knowledge_graph.json`（~6MB，6669+ 实体）
+- 自动加载：Agent 启动时自动加载知识图谱
+- 更新方式：重新运行 `init_steel_knowledge_graph.py` 重建知识图谱
+- 📚 **详细文档**: 查看 `docs/KNOWLEDGE_GRAPH_GUIDE.md` 了解完整使用说明
+
+**为什么 Agent 返回文字描述而非可视化图谱？**
+- Agent 的职责是回答问题（后端），不是渲染 UI（前端）
+- 知识图谱可视化需要前端页面（D3.js/Cytoscape.js）
+- Agent 通过 `KnowledgeGraphQueryTool` 查询数据，然后生成文字回答
+- ✅ 后端已实现：API 接口 + Agent 工具
+- ⏳ 待开发：前端可视化页面（`/dashboard/knowledge-graph`）
+
 ---
 
 ## Development Standards

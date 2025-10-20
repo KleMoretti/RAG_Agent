@@ -560,127 +560,306 @@ class StandardQueryTool(Tool):
 
 
 class KnowledgeGraphQueryTool(Tool):
-    """知识图谱查询工具"""
+    """知识图谱查询工具 - 连接真实的钢铁知识图谱"""
     
     def __init__(self):
         super().__init__(
             name="knowledge_graph_query",
-            description="查询钢铁知识图谱，探索钢种、工艺、设备之间的关系。支持查询：实体属性、关系路径、相似实体"
+            description="查询钢铁知识图谱，探索钢种、工艺、设备之间的关系。支持查询：实体属性、关系路径、相似实体、钢种成分等"
         )
+        self._kg_query = None
+        self._kg_builder = None
     
-    def run(self, query_type: str, entity_name: str, **kwargs) -> Dict[str, Any]:
-        """查询知识图谱"""
-        query_type = query_type.lower().strip()
+    def _init_knowledge_graph(self):
+        """延迟初始化知识图谱（避免启动时加载）"""
+        if self._kg_query is not None:
+            return
         
-        if query_type == "properties":
-            return self._query_properties(entity_name)
-        elif query_type == "relationships":
-            return self._query_relationships(entity_name)
-        elif query_type == "similar":
-            return self._query_similar(entity_name)
-        else:
+        try:
+            from pathlib import Path
+            from ..knowledge_graph.builder import SteelKnowledgeGraphBuilder
+            from ..knowledge_graph.query import SteelKnowledgeGraphQuery
+            
+            # 知识图谱文件路径
+            kg_file = Path(__file__).parent.parent.parent / "data" / "knowledge_graph.json"
+            
+            if kg_file.exists():
+                # 加载已有的知识图谱
+                self._kg_builder = SteelKnowledgeGraphBuilder()
+                self._kg_builder.load_from_file(str(kg_file))
+                self._kg_query = SteelKnowledgeGraphQuery(self._kg_builder.knowledge_graph)
+            else:
+                # 如果没有知识图谱文件，创建空的实例
+                self._kg_builder = SteelKnowledgeGraphBuilder()
+                self._kg_query = SteelKnowledgeGraphQuery(self._kg_builder.knowledge_graph)
+        except Exception as e:
+            # 初始化失败时记录错误
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to initialize knowledge graph: {e}")
+    
+    def run(self, query_type: str, entity_name: str = "", **kwargs) -> Dict[str, Any]:
+        """
+        查询知识图谱
+        
+        Args:
+            query_type: 查询类型 (properties, relationships, similar, steel_composition, statistics)
+            entity_name: 实体名称（部分查询需要）
+            **kwargs: 额外参数
+        """
+        # 初始化知识图谱
+        self._init_knowledge_graph()
+        
+        if self._kg_query is None:
             return {
                 "success": False,
-                "error": f"不支持的查询类型: {query_type}",
-                "supported_types": ["properties", "relationships", "similar"]
+                "error": "知识图谱未初始化或不可用",
+                "suggestion": "请检查 data/knowledge_graph.json 文件是否存在"
+            }
+        
+        query_type = query_type.lower().strip()
+        
+        try:
+            if query_type == "properties":
+                return self._query_properties(entity_name)
+            elif query_type == "relationships":
+                return self._query_relationships(entity_name, **kwargs)
+            elif query_type == "similar":
+                return self._query_similar(entity_name, **kwargs)
+            elif query_type == "steel_composition":
+                return self._query_steel_composition(entity_name)
+            elif query_type == "statistics":
+                return self._query_statistics()
+            elif query_type == "search":
+                return self._search_entities(entity_name, **kwargs)
+            else:
+                return {
+                    "success": False,
+                    "error": f"不支持的查询类型: {query_type}",
+                    "supported_types": ["properties", "relationships", "similar", "steel_composition", "statistics", "search"]
+                }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"查询失败: {str(e)}"
             }
     
     def _query_properties(self, entity_name: str) -> Dict[str, Any]:
         """查询实体属性"""
-        mock_entities = {
-            "Q235": {
-                "type": "钢种",
-                "category": "碳素结构钢",
-                "standard": "GB/T 700-2006",
-                "yield_strength": "235 MPa",
-                "applications": ["建筑", "桥梁", "车辆"],
-                "weldability": "良好"
-            },
-            "热轧": {
-                "type": "工艺",
-                "category": "轧制工艺",
-                "temperature_range": "850-1150°C",
-                "equipment": ["加热炉", "热轧机", "卷取机"],
-                "products": ["热轧板", "热轧卷", "型钢"]
-            },
-            "转炉": {
-                "type": "设备",
-                "category": "炼钢设备",
-                "capacity": "100-350吨",
-                "process": "氧气顶吹转炉炼钢",
-                "raw_materials": ["铁水", "废钢", "石灰"]
-            }
-        }
+        if not entity_name:
+            return {"success": False, "error": "实体名称不能为空"}
         
-        if entity_name in mock_entities:
+        entity = self._kg_query.get_entity_by_name(entity_name)
+        
+        if entity:
             return {
                 "success": True,
-                "entity": entity_name,
-                "properties": mock_entities[entity_name]
+                "entity": entity.name,
+                "entity_type": entity.entity_type.value,
+                "description": entity.description,
+                "properties": entity.properties,
+                "confidence": entity.confidence,
+                "created_at": entity.created_at.isoformat(),
+                "aliases": entity.aliases
             }
         else:
-            return {
-                "success": False,
-                "error": f"知识图谱中未找到实体: {entity_name}"
-            }
+            # 尝试模糊搜索
+            from ..knowledge_graph.models import SteelEntityType
+            result = self._kg_query.search_entities(
+                query=entity_name,
+                entity_types=None,
+                min_confidence=0.5,
+                limit=5
+            )
+            
+            if result.total_count > 0:
+                suggestions = [e.name for e in result.entities[:5]]
+                return {
+                    "success": False,
+                    "error": f"未找到实体 '{entity_name}'",
+                    "suggestions": suggestions
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"知识图谱中未找到实体: {entity_name}",
+                    "suggestion": "尝试使用 search 查询类型进行模糊搜索"
+                }
     
-    def _query_relationships(self, entity_name: str) -> Dict[str, Any]:
+    def _query_relationships(self, entity_name: str, **kwargs) -> Dict[str, Any]:
         """查询实体关系"""
-        mock_relationships = {
-            "Q235": [
-                {"relation": "属于", "target": "碳素结构钢", "type": "分类"},
-                {"relation": "用于生产", "target": "建筑结构件", "type": "应用"},
-                {"relation": "可通过", "target": "热轧工艺", "type": "加工"},
-                {"relation": "符合标准", "target": "GB/T 700-2006", "type": "标准"}
-            ],
-            "热轧": [
-                {"relation": "需要设备", "target": "热轧机", "type": "设备"},
-                {"relation": "前道工序", "target": "加热", "type": "工艺流程"},
-                {"relation": "后道工序", "target": "冷却", "type": "工艺流程"},
-                {"relation": "生产产品", "target": "热轧板", "type": "产品"}
-            ]
-        }
+        if not entity_name:
+            return {"success": False, "error": "实体名称不能为空"}
         
-        if entity_name in mock_relationships:
-            relationships = mock_relationships[entity_name]
+        entity = self._kg_query.get_entity_by_name(entity_name)
+        if not entity:
+            return {
+                "success": False,
+                "error": f"未找到实体: {entity_name}"
+            }
+        
+        max_depth = kwargs.get("max_depth", 1)
+        related_entities = self._kg_query.get_related_entities(
+            entity_id=entity.id,
+            relation_types=None,
+            max_depth=max_depth
+        )
+        
+        # 获取所有相关的关系
+        relations = self._kg_query.knowledge_graph.get_relations_by_entity(entity.id)
+        
+        relationships = []
+        for relation in relations:
+            # 获取目标实体
+            if relation.source_id == entity.id:
+                target_id = relation.target_id
+                direction = "outgoing"
+            else:
+                target_id = relation.source_id
+                direction = "incoming"
+            
+            target_entity = self._kg_query.get_entity_by_id(target_id)
+            if target_entity:
+                relationships.append({
+                    "relation_type": relation.relation_type.value,
+                    "direction": direction,
+                    "target": target_entity.name,
+                    "target_type": target_entity.entity_type.value,
+                    "confidence": relation.confidence
+                })
+        
+        return {
+            "success": True,
+            "entity": entity_name,
+            "relationship_count": len(relationships),
+            "relationships": relationships,
+            "related_entities_count": len(related_entities)
+        }
+    
+    def _query_similar(self, entity_name: str, **kwargs) -> Dict[str, Any]:
+        """查询相似实体（基于实体类型）"""
+        if not entity_name:
+            return {"success": False, "error": "实体名称不能为空"}
+        
+        entity = self._kg_query.get_entity_by_name(entity_name)
+        if not entity:
+            return {
+                "success": False,
+                "error": f"未找到实体: {entity_name}"
+            }
+        
+        # 查找相同类型的实体
+        similar_entities = self._kg_query.get_entities_by_type(entity.entity_type)
+        
+        # 排除自己
+        similar_entities = [e for e in similar_entities if e.id != entity.id]
+        
+        # 限制返回数量
+        limit = kwargs.get("limit", 10)
+        similar_entities = similar_entities[:limit]
+        
+        similar_list = []
+        for sim_entity in similar_entities:
+            similar_list.append({
+                "entity": sim_entity.name,
+                "entity_type": sim_entity.entity_type.value,
+                "confidence": sim_entity.confidence,
+                "description": sim_entity.description
+            })
+        
+        return {
+            "success": True,
+            "entity": entity_name,
+            "entity_type": entity.entity_type.value,
+            "similar_count": len(similar_list),
+            "similar_entities": similar_list
+        }
+    
+    def _query_steel_composition(self, steel_grade: str) -> Dict[str, Any]:
+        """查询钢种成分信息"""
+        if not steel_grade:
+            return {"success": False, "error": "钢种名称不能为空"}
+        
+        composition = self._kg_query.get_steel_composition(steel_grade)
+        
+        if composition:
             return {
                 "success": True,
-                "entity": entity_name,
-                "relationship_count": len(relationships),
-                "relationships": relationships
+                "steel_grade": steel_grade,
+                "composition": composition
             }
         else:
             return {
                 "success": False,
-                "error": f"未找到实体 {entity_name} 的关系信息"
+                "error": f"未找到钢种 '{steel_grade}' 的成分信息"
             }
     
-    def _query_similar(self, entity_name: str) -> Dict[str, Any]:
-        """查询相似实体"""
-        mock_similar = {
-            "Q235": [
-                {"entity": "Q215", "similarity": 0.92, "reason": "同属碳素结构钢，性能接近"},
-                {"entity": "Q275", "similarity": 0.88, "reason": "同类钢种，强度稍高"},
-                {"entity": "A36", "similarity": 0.85, "reason": "美标对应钢种"}
-            ],
-            "304": [
-                {"entity": "304L", "similarity": 0.95, "reason": "超低碳版本，焊接性能更好"},
-                {"entity": "321", "similarity": 0.82, "reason": "同属奥氏体不锈钢"},
-                {"entity": "316", "similarity": 0.78, "reason": "添加钼，耐腐蚀性更强"}
-            ]
-        }
-        
-        if entity_name in mock_similar:
+    def _query_statistics(self) -> Dict[str, Any]:
+        """获取知识图谱统计信息"""
+        try:
+            # 从 builder 获取统计信息
+            if self._kg_builder:
+                stats = self._kg_builder.get_statistics()
+            else:
+                # 手动计算统计信息
+                stats = {
+                    "total_entities": len(self._kg_query.kg.entities),
+                    "total_relations": len(self._kg_query.kg.relations),
+                    "entity_type_counts": {},
+                    "relation_type_counts": {}
+                }
+                
+                # 统计实体类型
+                from ..knowledge_graph.models import SteelEntityType, SteelRelationType
+                for entity_type in SteelEntityType:
+                    entities = self._kg_query.get_entities_by_type(entity_type)
+                    stats["entity_type_counts"][entity_type.value] = len(entities)
+                
+                # 统计关系类型
+                for relation in self._kg_query.kg.relations.values():
+                    rel_type = relation.relation_type.value
+                    stats["relation_type_counts"][rel_type] = stats["relation_type_counts"].get(rel_type, 0) + 1
+            
             return {
                 "success": True,
-                "entity": entity_name,
-                "similar_entities": mock_similar[entity_name]
+                "statistics": stats
             }
-        else:
+        except Exception as e:
             return {
                 "success": False,
-                "error": f"未找到与 {entity_name} 相似的实体"
+                "error": f"获取统计信息失败: {str(e)}"
             }
+    
+    def _search_entities(self, query: str, **kwargs) -> Dict[str, Any]:
+        """搜索实体（模糊匹配）"""
+        if not query:
+            return {"success": False, "error": "搜索关键词不能为空"}
+        
+        limit = kwargs.get("limit", 10)
+        min_confidence = kwargs.get("min_confidence", 0.0)
+        
+        result = self._kg_query.search_entities(
+            query=query,
+            entity_types=None,
+            min_confidence=min_confidence,
+            limit=limit
+        )
+        
+        entities = []
+        for entity in result.entities:
+            entities.append({
+                "name": entity.name,
+                "entity_type": entity.entity_type.value,
+                "description": entity.description,
+                "confidence": entity.confidence
+            })
+        
+        return {
+            "success": True,
+            "query": query,
+            "total_count": result.total_count,
+            "entities": entities
+        }
 
 
 class QualityAnalysisTool(Tool):
