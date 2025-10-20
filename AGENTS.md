@@ -116,7 +116,12 @@ python scripts/db_migrate.py status        # 查看数据库状态
 18. Performance: batch embeddings; avoid redundant FAISS loads; consider caching frequent queries.
 19. Security: validate user input before search/LLM; never log secrets; plan filters (`tenant_id`, `visibility`).
 20. **RAG Timeout & Fallback**: RAG检索+LLM调用有25秒超时（可配置`RAG_TIMEOUT_SECONDS`），超时自动降级为直接使用LLM（不带RAG上下文），确保用户始终能获得响应。前端总超时60秒。
-21. **Documentation Updates Only**: All project documentation and standards MUST be maintained in AGENTS.md. Never create new separate documentation files (e.g., no new README files, GUIDE.md, STANDARDS.md, etc.). Update existing AGENTS.md instead.
+21. **Documentation Management**: 
+    - ✅ ONLY update AGENTS.md for project documentation, standards, and guides
+    - ❌ NEVER create new documentation files (README.md, GUIDE.md, STANDARDS.md, FIX.md, etc.)
+    - ❌ NEVER create temporary markdown files for fixes or features
+    - ✅ Add sections to AGENTS.md instead: append to existing sections or create new ones
+    - ✅ Keep AGENTS.md as single source of truth for all project information
 
 ---
 
@@ -758,6 +763,9 @@ frontend/
 - `POST /api/upload` - File upload
 - `GET /api/admin/users` - Get user list
 - `PUT /api/admin/users/:id` - Update user
+- `GET /api/admin/files` - Get file list (with pagination & search)
+- `DELETE /api/admin/files/{file_name}` - Delete single file
+- `POST /api/admin/files/batch-delete` - Batch delete files (body: `{"fileNames": ["file1.pdf", "file2.txt"]}`)
 
 #### Streaming Response Handling
 - Receive AI streaming output via SSE or WebSocket
@@ -860,3 +868,173 @@ interface DataConnector {
 5. **Real-time + Historical**: Combines live data analysis with document-based knowledge
 6. **Graceful Degradation**: Full functionality in demo mode for testing and training
 7. **Incremental Deployment**: Start with documents, add data sources progressively
+
+---
+
+## Troubleshooting & Known Issues
+
+### 批量删除文档功能 (Batch Delete Documents)
+
+#### 问题：前端批量删除返回 405 Method Not Allowed
+**症状**：点击批量删除按钮后，控制台显示：
+```
+POST /api/admin/files/batch-delete HTTP/1.1" 405 Method Not Allowed
+```
+
+**原因**：后端缺少批量删除接口（已修复）
+
+**解决方案**：
+1. 确认后端 `src/api/admin.py` 包含批量删除接口：
+   ```python
+   @router.post("/files/batch-delete")
+   def batch_delete_files(
+       request: BatchDeleteRequest,
+       db: Session = Depends(get_db),
+       admin: User = Depends(require_admin),
+   ):
+   ```
+
+2. 重启后端服务：
+   ```bash
+   python manage.py start backend
+   ```
+
+3. 测试批量删除：
+   - 登录管理员账号
+   - 访问 `http://localhost:3000/dashboard/knowledge`
+   - 勾选多个文档
+   - 点击"批量删除"按钮
+   - 应该看到成功通知
+
+**API 规格**：
+- **端点**：`POST /api/admin/files/batch-delete`
+- **权限**：管理员
+- **请求体**：
+  ```json
+  {
+    "fileNames": ["file1.pdf", "file2.txt"]
+  }
+  ```
+- **响应体**：
+  ```json
+  {
+    "success": ["file1.pdf"],
+    "failed": [{"fileName": "file2.txt", "reason": "文件不存在"}],
+    "total": 2
+  }
+  ```
+
+**安全措施**：
+- ✅ 路径遍历防护（拒绝包含 `..`、`/`、`\` 的文件名）
+- ✅ 管理员权限验证
+- ✅ 详细的操作日志记录
+
+**前端类型定义** (`frontend/lib/types/api.ts`)：
+```typescript
+export interface BatchDeleteRequest {
+    fileNames: string[];  // 使用 fileNames 而非 fileIds
+}
+
+export interface BatchDeleteResponse {
+    success: string[];    // 成功删除的文件名列表
+    failed: Array<{ fileName: string; reason: string }>;
+    total: number;
+}
+```
+
+#### 问题：删除后文件仍显示在列表中
+**解决方案**：
+1. 检查前端是否调用了缓存失效：
+   ```typescript
+   queryClient.invalidateQueries({ queryKey: ["documents"] });
+   ```
+2. 手动刷新页面验证
+3. 检查后端日志确认删除成功
+
+#### 问题：权限错误 403 Forbidden
+**解决方案**：
+1. 确认当前用户是管理员角色（role = "ADMIN"）
+2. 检查 JWT token 有效性
+3. 重新登录
+
+### RAG 检索超时问题
+
+#### 问题：查询响应缓慢或超时
+**解决方案**：
+1. 检查 `.env` 配置：
+   ```bash
+   RAG_TIMEOUT_SECONDS=25  # 调整超时时间
+   ```
+2. 检查后端日志是否显示 `fallback_mode: true`（表示已降级）
+3. 优化 FAISS 索引或减少文档数量
+
+### 前端开发服务器问题
+
+#### 问题：npm run dev 失败
+**解决方案**：
+1. 删除依赖并重新安装：
+   ```bash
+   cd frontend
+   rm -rf node_modules package-lock.json
+   npm install
+   ```
+2. 检查 Node.js 版本（需要 18+）：
+   ```bash
+   node --version
+   ```
+
+#### 问题：shadcn 组件未正确显示
+**解决方案**：
+1. 确认已安装 shadcn 组件：
+   ```bash
+   npx shadcn@latest add sonner
+   ```
+2. 检查 `components.json` 配置
+3. 验证 Tailwind CSS 配置正确
+
+### 数据库问题
+
+#### 问题：数据库连接失败
+**解决方案**：
+1. 重置数据库：
+   ```bash
+   python scripts/db_migrate.py reset
+   ```
+2. 重新初始化：
+   ```bash
+   python manage.py init
+   ```
+
+#### 问题：找不到表或字段
+**解决方案**：
+1. 运行迁移：
+   ```bash
+   python scripts/db_migrate.py add-prompts
+   ```
+2. 检查数据库状态：
+   ```bash
+   python manage.py check --verbose
+   ```
+
+### 文件上传问题
+
+#### 问题：文件上传后无法检索
+**解决方案**：
+1. 重建 RAG 索引：
+   ```bash
+   python scripts/rag_cli.py build --rebuild
+   ```
+2. 检查文档是否在 `data/processed` 目录
+3. 验证文件格式是否支持（PDF、DOCX、TXT、MD）
+
+### 通用调试步骤
+
+1. **检查后端日志**：查看详细错误信息
+2. **检查前端 Console**：查看 JavaScript 错误
+3. **检查 Network 标签**：验证 API 请求/响应
+4. **重启服务**：
+   ```bash
+   python manage.py start backend
+   npm run dev  # 在 frontend 目录
+   ```
+5. **清除缓存**：浏览器开发者工具 → Application → Clear storage
