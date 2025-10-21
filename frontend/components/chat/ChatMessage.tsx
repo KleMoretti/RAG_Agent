@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ChevronDown, ChevronUp, FileText, User, Bot } from "lucide-react";
 import type { ChatMessage as ChatMessageType } from "@/lib/types/api";
+import { MarkdownContent } from "./MarkdownContent";
 
 interface ChatMessageProps {
     message: ChatMessageType;
@@ -43,9 +44,16 @@ export function ChatMessage({ message }: ChatMessageProps) {
                             : "bg-muted"
                     }`}
                 >
-                    <div className="whitespace-pre-wrap break-words text-sm">
-                        {message.content}
-                    </div>
+                    {isUser ? (
+                        <div className="whitespace-pre-wrap break-words text-sm">
+                            {message.content}
+                        </div>
+                    ) : (
+                        <MarkdownContent
+                            content={message.content}
+                            className="text-sm"
+                        />
+                    )}
 
                     {/* 附件显示 */}
                     {hasAttachments && (
