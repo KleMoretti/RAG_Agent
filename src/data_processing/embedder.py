@@ -6,6 +6,7 @@ class Embedder:
     """
     文本向量化工具，使用预训练模型将文本转换为向量。
     支持向量归一化，适配 VectorStore。
+    paraphrase-multilingual-MiniLM-L12-v2
     """
 
     def __init__(self, model_name: str = "all-MiniLM-L6-v2"):

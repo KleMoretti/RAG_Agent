@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     vector_index_path: str = "./data/index/faiss.index"
     data_dir: str = "./data/raw"
     log_level: str = "INFO"
-    top_k: int = 5
+    top_k: int = 10  # 增加检索数量，提高召回率
     max_chunk_tokens: int = 350
     chunk_overlap: int = 40
 

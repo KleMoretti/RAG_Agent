@@ -40,7 +40,7 @@ from functools import lru_cache
 from src.data_processing.preprocessor import Preprocessor
 from src.data_processing.loader import DataLoader
 from src.data_processing.embedder import Embedder
-from src.retrieval.vector_store import VectorStore
+from src.retrieval.vector_store_fast import VectorStoreFast
 
 # Project data directories
 BASE_DIR = Path(__file__).parent
@@ -74,13 +74,21 @@ def get_embedder() -> Embedder:
 
 
 @lru_cache(maxsize=1)
-def get_vector_store() -> VectorStore:
+def get_vector_store() -> VectorStoreFast:
     emb = get_embedder()
     index_path = EMBED_DIR / "index.faiss"
     meta_path = EMBED_DIR / "index.meta.jsonl"
     # Vectors we add below are already L2-normalized by Embedder.encode
-    return VectorStore(
-        dim=emb.dim, index_path=index_path, metadata_path=meta_path, normalize=False
+    # use_ivf=None: 自动判断（<10k用Flat，>=10k自动升级为IVF）
+    return VectorStoreFast(
+        dim=emb.dim, 
+        index_path=index_path, 
+        metadata_path=meta_path, 
+        normalize=False,
+        use_ivf=None,  # 自动选择
+        nlist=100,  # IVF聚类数
+        m=8,  # PQ子向量数
+        nbits=8,  # 每个子向量8位
     )
 
 

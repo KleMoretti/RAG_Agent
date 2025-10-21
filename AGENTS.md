@@ -30,6 +30,9 @@ python scripts/rag_cli.py search --interactive
 # 查看系统信息
 python scripts/rag_cli.py info
 python scripts/rag_cli.py check      # 检查数据库状态
+
+# 索引迁移（如需手动升级旧索引）
+python scripts/migrate_to_fast_index.py --auto
 ```
 
 ### Database Management (scripts/db_migrate.py)
@@ -92,15 +95,16 @@ python scripts/init_steel_knowledge_graph.py
 10. Logging: use `config.logging_config.setup_logging`; levels => INFO workflow, DEBUG internals, WARNING recoverable, ERROR failjsonure, CRITICAL outage; no `print` in src.
 11. Data/paths: use `pathlib.Path`; directories created lazily in `get_settings()`.
 12. Vector/RAG metadata keys: `file, chunk_id, hash, preview, score, rank`; keep embeddings float32; batch for performance.
-13. Tool/Agent: extend `Tool`, register via `BaseAgent.add_tool`; duplicate names raise ValueError; reasoning path via `ReasoningEngine`.
-14. Formatting: recommend `ruff format` or `black`; line length ≤ 100; strip unused imports (ruff).
-15. Lint (optional): `ruff check .`; type check (if added) `mypy src tests`.
-16. Commits: Conventional (`feat:`, `fix:`, `refactor:`); PR must pass `pytest -q`; keep diffs focused.
-17. Config: only through `get_settings()`; no hardcoded secrets; `.env` ignored; add `.env.example` when new vars.
-18. Performance: batch embeddings; avoid redundant FAISS loads; consider caching frequent queries.
-19. Security: validate user input before search/LLM; never log secrets; plan filters (`tenant_id`, `visibility`).
-20. **RAG Timeout & Fallback**: RAG检索+LLM调用有25秒超时（可配置`RAG_TIMEOUT_SECONDS`），超时自动降级为直接使用LLM（不带RAG上下文），确保用户始终能获得响应。前端总超时60秒。
-21. **Documentation Management**: 
+13. **Vector Store**: 已升级为 `VectorStoreFast` 自动优化版本（<10k向量用Flat精确检索，≥10k自动升级IVF+PQ近似检索，5-10倍加速）
+14. Tool/Agent: extend `Tool`, register via `BaseAgent.add_tool`; duplicate names raise ValueError; reasoning path via `ReasoningEngine`.
+15. Formatting: recommend `ruff format` or `black`; line length ≤ 100; strip unused imports (ruff).
+16. Lint (optional): `ruff check .`; type check (if added) `mypy src tests`.
+17. Commits: Conventional (`feat:`, `fix:`, `refactor:`); PR must pass `pytest -q`; keep diffs focused.
+18. Config: only through `get_settings()`; no hardcoded secrets; `.env` ignored; add `.env.example` when new vars.
+19. Performance: batch embeddings; avoid redundant FAISS loads; consider caching frequent queries.
+20. Security: validate user input before search/LLM; never log secrets; plan filters (`tenant_id`, `visibility`).
+21. **RAG Timeout & Fallback**: RAG检索+LLM调用有25秒超时（可配置`RAG_TIMEOUT_SECONDS`），超时自动降级为直接使用LLM（不带RAG上下文），确保用户始终能获得响应。前端总超时60秒。
+22. **Documentation Management**: 
     - ✅ ONLY update AGENTS.md for project documentation, standards, and guides
     - ❌ NEVER create new documentation files (README.md, GUIDE.md, STANDARDS.md, FIX.md, etc.)
     - ❌ NEVER create temporary markdown files for fixes or features
@@ -873,6 +877,121 @@ const handleUpload = async (file: File) => {
 
 ---
 
+## Vector Store Architecture (Fast Version)
+
+### 概述
+系统已升级为 **VectorStoreFast** 优化版本，支持自动索引选择和性能优化。
+
+### 技术特性
+
+#### 1. 自动索引选择策略
+```python
+# VectorStoreFast 自动选择最优索引类型
+- 向量数 < 10,000:  IndexFlatIP (精确检索，O(n))
+- 向量数 ≥ 10,000:  IndexIVFPQ (近似检索，O(log n)，5-10倍加速)
+```
+
+#### 2. 性能对比
+
+| 索引类型 | 向量数 | 搜索速度 | 精度 | 适用场景 |
+|---------|-------|---------|-----|---------|
+| **IndexFlatIP** | < 10k | 快 (~1ms) | 100% | 小型知识库 |
+| **IndexIVFPQ** | ≥ 10k | 极快 (~0.1ms) | ~98% | 大型知识库 |
+
+#### 3. 自动升级机制
+当向量数量达到 10,000 时，系统会自动升级索引：
+
+```python
+# 自动触发条件
+if vector_count >= 10000 and not is_ivf:
+    print("🚀 向量数量达到 10000，升级为IVF+PQ索引...")
+    upgrade_to_ivf()  # 自动完成，无需手动操作
+```
+
+**升级过程**：
+1. 提取现有向量
+2. 训练 IVF 聚类中心（nlist=100）
+3. 应用 PQ 压缩（m=8, nbits=8）
+4. 重新添加所有向量
+5. 保存新索引（自动备份旧索引）
+
+#### 4. 配置参数
+
+```python
+# main.py 中的配置
+VectorStoreFast(
+    dim=384,                 # 向量维度（all-MiniLM-L6-v2）
+    use_ivf=None,           # None=自动判断，True=强制IVF，False=强制Flat
+    nlist=100,              # IVF聚类数（影响检索速度和精度）
+    m=8,                    # PQ子向量数（压缩率）
+    nbits=8,                # 每个子向量位数
+)
+```
+
+**参数调优建议**：
+- `nlist`: 聚类数 = sqrt(向量数)，100-1000 之间
+- `m`: 子向量数，越大压缩率越低、精度越高，推荐 8-16
+- `nbits`: 比特数，推荐 8（平衡精度和内存）
+
+#### 5. 使用场景
+
+**✅ 当前使用 Flat（推荐）**：
+- 向量数 < 10,000
+- 精度要求 100%
+- 搜索速度已足够快（< 1ms）
+
+**🚀 未来自动升级到 IVF**：
+- 向量数 ≥ 10,000
+- 需要更快检索速度
+- 可接受 ~2% 精度损失
+
+#### 6. 手动迁移（可选）
+
+如果需要立即升级到 IVF（不推荐，除非向量数已 > 10k）：
+
+```bash
+# 备份现有索引并升级
+python scripts/migrate_to_fast_index.py --auto
+
+# 性能对比测试
+python scripts/benchmark_rag_performance.py
+```
+
+#### 7. 监控和统计
+
+```bash
+# 查看索引状态
+python scripts/rag_cli.py info
+
+# 输出示例：
+# 📥 加载向量库: 1345 个向量, 索引类型: Flat
+# 向量库大小: 1345 个块
+# 索引路径: D:\...\data\embeddings\index.faiss
+```
+
+**关键指标**：
+- `索引类型`: Flat（精确）或 IVF+PQ（近似）
+- `向量数量`: 当前存储的向量数
+- `搜索性能`: 平均检索时间（通过 benchmark 测试）
+
+#### 8. 故障排查
+
+**问题：升级后搜索结果不准确**
+- **原因**: IVF 近似检索可能丢失部分结果
+- **解决**: 增加 `nprobe` 参数（探测更多聚类）
+  ```python
+  store.search(query_vec, top_k=5, nprobe=20)  # 默认10，增加到20提高召回
+  ```
+
+**问题：索引文件损坏或不兼容**
+- **原因**: Fast 版本索引格式不同
+- **解决**: 重新构建索引
+  ```bash
+  python scripts/rag_cli.py build --rebuild
+  ```
+
+---
+
 ## Troubleshooting & Known Issues
 
 ### 批量删除文档功能 (Batch Delete Documents)
@@ -1113,10 +1232,12 @@ def _convert_fullwidth_to_halfwidth(self, text: str) -> str:
 
 **最佳实践**：
 1. ✅ 上传文档时确保包含概念性介绍（摘要、引言）
-2. ✅ 查询时使用文档中实际出现的术语
+2. ✅ **查询时使用文档中实际出现的技术术语**（如"板形控制"、"张力解耦"、"协同优化"）
 3. ✅ 对于特定文档查询，结合文件名搜索
 4. ✅ 定期检查分块质量（使用 `rag_cli.py info`）
-5. ❌ 避免过于宽泛或概念化的查询
+5. ✅ **使用诊断工具测试查询效果**（`python scripts/diagnose_retrieval.py`）
+6. ❌ 避免过于宽泛或概念化的查询（"是什么"、"介绍一下"等）
+7. ❌ 避免只使用文档标题查询（标题可能被元数据稀释）
 
 ### 前端开发服务器问题
 

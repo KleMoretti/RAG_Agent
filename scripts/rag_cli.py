@@ -33,7 +33,7 @@ sys.path.insert(0, str(project_root))
 from src.data_processing.loader import DataLoader
 from src.data_processing.preprocessor import Preprocessor
 from src.data_processing.embedder import Embedder
-from src.retrieval.vector_store import VectorStore
+from src.retrieval.vector_store_fast import VectorStoreFast
 from src.retrieval.indexer import Indexer
 from config.logging_config import setup_logging
 from scripts.paths import DATA_DIRS, ensure_data_dirs
@@ -88,12 +88,16 @@ class RAGSystemManager:
         )
         self.embedder = Embedder(model_name=self.embedding_model)
         
-        # 创建向量存储
-        self.store = VectorStore(
+        # 创建快速向量存储（自动选择索引类型）
+        self.store = VectorStoreFast(
             dim=self.embedder.dim,
             index_path=DATA_DIRS['embeddings'] / "index.faiss",
             metadata_path=DATA_DIRS['embeddings'] / "index.meta.jsonl",
-            normalize=False
+            normalize=False,
+            use_ivf=None,  # 自动判断：<10k用Flat，>=10k自动升级IVF
+            nlist=100,
+            m=8,
+            nbits=8,
         )
         
         # 创建分块函数
