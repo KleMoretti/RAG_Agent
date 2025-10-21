@@ -18,6 +18,27 @@ python manage.py check --verbose     # 详细信息
 python manage.py status              # 查看系统运行状态
 ```
 
+### Professional Vocabulary Management (专业词汇管理)
+```bash
+# 添加钢铁行业默认词汇（首次运行后执行）
+python scripts/vocabulary_manager.py add-default
+
+# 从 CSV 文件批量导入词汇
+python scripts/vocabulary_manager.py import vocabulary.csv
+
+# 查看词汇统计
+python scripts/vocabulary_manager.py stats
+
+# 搜索词汇
+python scripts/vocabulary_manager.py search "Q235"
+
+# 导出词汇到 CSV
+python scripts/vocabulary_manager.py export output.csv
+
+# 测试查询增强
+python scripts/vocabulary_manager.py test-enhance "Q235钢板的抗拉强度是多少？"
+```
+
 ### RAG System Management (scripts/rag_cli.py)
 ```bash
 # 构建 RAG 索引
@@ -78,6 +99,242 @@ python scripts/init_steel_knowledge_graph.py
 - Agent 通过 `KnowledgeGraphQueryTool` 查询数据，然后生成文字回答
 - ✅ 后端已实现：API 接口 + Agent 工具
 - ⏳ 待开发：前端可视化页面（`/dashboard/knowledge-graph`）
+
+---
+
+## Professional Vocabulary System (专业词汇系统)
+
+### 功能说明
+系统集成了专业词汇识别和查询增强功能，能够自动识别用户查询中的钢铁行业专业术语，并提供更准确的回答。
+
+### 核心特性
+1. **自动识别专业词汇**: 在用户查询中自动识别钢种、工艺、设备等专业术语
+2. **查询增强 (Query Enhancement)**: 自动添加同义词和相关术语，提高检索准确性
+3. **词汇上下文注入**: 将专业词汇的定义和相关信息注入到 Prompt，帮助 Agent 理解专业术语
+4. **支持同义词和关联词**: 建立词汇之间的关联关系，提升语义理解
+
+### 工作流程
+```
+用户查询 "Q235钢板的抗拉强度是多少？"
+    ↓
+1. 专业词汇识别
+   识别到: Q235 (钢种牌号)
+    ↓
+2. 查询增强
+   原始查询: Q235钢板的抗拉强度是多少？
+   增强查询: Q235钢板的抗拉强度是多少？ 碳素结构钢 屈服强度
+   (添加同义词和相关术语)
+    ↓
+3. 向量检索
+   使用增强后的查询进行 RAG 检索
+    ↓
+4. 上下文注入
+   【专业词汇上下文】
+   Q235: 碳素结构钢，屈服强度≥235MPa
+   相关术语: 抗拉强度、屈服强度、延伸率
+   
+   【检索上下文】
+   (从知识库检索的文档片段)
+    ↓
+5. Agent 回答
+   基于专业词汇定义 + 检索内容生成专业回答
+```
+
+### 数据库表结构
+```sql
+CREATE TABLE vocabulary (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    term VARCHAR(128) NOT NULL,           -- 术语名称
+    definition TEXT NOT NULL,             -- 定义
+    category VARCHAR(64) NOT NULL,        -- 分类 (steel_grade, process, equipment, etc.)
+    synonyms JSON,                        -- 同义词列表
+    related_terms JSON,                   -- 相关术语列表
+    created_at DATETIME,
+    updated_at DATETIME,
+    created_by BIGINT,
+    INDEX idx_term_category (term, category)
+);
+```
+
+### API 端点
+- `GET /api/admin/vocabulary` - 获取词汇列表（分页）
+- `POST /api/admin/vocabulary` - 创建新词汇
+- `PUT /api/admin/vocabulary/{id}` - 更新词汇
+- `DELETE /api/admin/vocabulary/{id}` - 删除词汇
+- `GET /api/admin/vocabulary/search?q=关键词` - 搜索词汇
+
+### 词汇分类 (Category)
+| 分类 | 说明 | 示例 |
+|-----|------|-----|
+| `steel_grade` | 钢种牌号 | Q235, Q345, 304, 316L |
+| `steel_type` | 钢材类型 | 碳素钢、不锈钢、合金钢 |
+| `alloy_element` | 合金元素 | 碳、硅、锰、铬、镍 |
+| `material_property` | 材料性能 | 抗拉强度、屈服强度、延伸率 |
+| `process` | 工艺流程 | 炼钢、热轧、冷轧、退火 |
+| `equipment` | 设备名称 | 转炉、热轧机、冷轧机 |
+| `application` | 应用领域 | 建筑结构、汽车制造、压力容器 |
+| `standard` | 标准规范 | GB/T, ASTM, JIS, DIN |
+
+### 使用示例
+
+#### 1. 添加默认词汇库
+```bash
+# 添加钢铁行业常用词汇（~500个术语）
+python scripts/vocabulary_manager.py add-default
+
+# 输出示例：
+# ✅ 成功添加词汇: Q235 (钢种牌号)
+# ✅ 成功添加词汇: 转炉 (设备)
+# ...
+# 📊 总计添加: 478 个专业词汇
+```
+
+#### 2. 批量导入词汇
+CSV 格式 (`vocabulary.csv`):
+```csv
+term,definition,category,synonyms,related_terms
+Q235,碳素结构钢，屈服强度≥235MPa,steel_grade,"碳素钢,结构钢","Q345,抗拉强度,屈服强度"
+转炉,炼钢的主要设备，用于将生铁转化为钢,equipment,炼钢炉,"电炉,炼钢,钢水"
+```
+
+导入命令:
+```bash
+python scripts/vocabulary_manager.py import vocabulary.csv
+```
+
+#### 3. 查询增强测试
+```bash
+python scripts/vocabulary_manager.py test-enhance "Q235钢板的抗拉强度是多少？"
+
+# 输出示例：
+# 🔍 原始查询: Q235钢板的抗拉强度是多少？
+# 📝 识别到专业词汇: ['Q235', '抗拉强度']
+# ✨ 增强查询: Q235钢板的抗拉强度是多少？ 碳素结构钢 屈服强度
+# 
+# === 专业词汇上下文 ===
+# 【Q235】
+# 定义: 碳素结构钢，屈服强度≥235MPa
+# 分类: steel_grade
+# 相关术语: Q345, 抗拉强度, 屈服强度
+```
+
+#### 4. 通过 API 管理词汇
+```python
+import requests
+
+# 创建新词汇
+response = requests.post("http://localhost:8000/api/admin/vocabulary", json={
+    "term": "Q345",
+    "definition": "低合金高强度结构钢，屈服强度≥345MPa",
+    "category": "steel_grade",
+    "synonyms": ["345钢", "低合金钢"],
+    "relatedTerms": ["Q235", "Q420", "屈服强度"]
+}, headers={"Authorization": "Bearer <admin_token>"})
+
+# 搜索词汇
+response = requests.get("http://localhost:8000/api/admin/vocabulary/search?q=Q235")
+print(response.json())
+```
+
+### 代码集成示例
+
+#### 在自定义 Agent 中使用专业词汇
+```python
+from src.vocabulary import VocabularyService, QueryEnhancer
+from src.api.db import get_db
+
+# 初始化服务
+db = next(get_db())
+vocab_service = VocabularyService(db)
+vocab_service.initialize()  # 加载词汇到内存
+
+# 创建查询增强器
+enhancer = QueryEnhancer(vocab_service)
+
+# 增强查询
+query = "Q235钢板的抗拉强度是多少？"
+enhanced = enhancer.enhance(query, add_synonyms=True, add_related=True)
+
+print(f"原始查询: {enhanced.original_query}")
+print(f"增强查询: {enhanced.enhanced_query}")
+print(f"识别词汇: {[t['term'] for t in enhanced.identified_terms]}")
+print(f"词汇上下文:\n{enhanced.vocabulary_context}")
+```
+
+#### 在文本中识别专业词汇
+```python
+text = "Q235和Q345是常用的碳素结构钢，广泛应用于建筑结构。"
+found_terms = vocab_service.find_terms_in_text(text)
+
+for term_info in found_terms:
+    vocab = term_info['vocabulary']
+    print(f"识别到: {vocab.term} ({vocab.category})")
+    print(f"定义: {vocab.definition}")
+    print(f"位置: {term_info['position']}")
+```
+
+### 配置选项
+
+在 `main.py` 中配置查询增强行为:
+```python
+# 获取查询增强器
+enhancer = get_query_enhancer()
+
+# 增强选项
+enhanced = enhancer.enhance(
+    query="Q235钢板强度",
+    add_synonyms=True,       # 添加同义词
+    add_related=True,        # 添加相关术语
+    max_related_terms=5      # 最多添加5个相关术语
+)
+```
+
+### 性能优化
+1. **内存缓存**: 词汇库启动时加载到内存，避免重复查询数据库
+2. **索引优化**: 术语和同义词建立索引，快速查找
+3. **边界检测**: 避免匹配子串（如避免将"Q2"识别为"Q235"的一部分）
+4. **去重机制**: 避免重复识别重叠的术语
+
+### 最佳实践
+1. ✅ **定期维护词汇库**: 随着业务发展添加新的专业术语
+2. ✅ **建立术语关联**: 为每个术语添加同义词和相关术语
+3. ✅ **分类管理**: 按照分类组织词汇，便于管理和检索
+4. ✅ **版本控制**: 导出词汇库到 CSV，纳入版本管理
+5. ✅ **用户反馈**: 根据用户查询日志发现缺失的专业术语
+6. ❌ 避免过度扩展查询（导致检索噪音）
+7. ❌ 避免添加过于通用的词汇（如"钢"、"铁"）
+
+### 故障排查
+
+#### 问题：专业词汇未被识别
+**解决方案**：
+1. 检查词汇是否在数据库中：
+   ```bash
+   python scripts/vocabulary_manager.py search "Q235"
+   ```
+2. 检查大小写（词汇识别是大小写不敏感的）
+3. 检查术语边界（避免子串匹配问题）
+4. 刷新词汇缓存：
+   ```python
+   vocab_service.refresh_cache()
+   ```
+
+#### 问题：查询增强后检索结果变差
+**原因**: 添加的相关术语引入噪音
+
+**解决方案**：
+1. 减少 `max_related_terms` 参数（默认5，可调整为2-3）
+2. 检查相关术语的准确性
+3. 暂时禁用相关术语扩展：
+   ```python
+   enhanced = enhancer.enhance(query, add_synonyms=True, add_related=False)
+   ```
+
+#### 问题：词汇加载慢
+**解决方案**：
+1. 词汇库使用单例模式（`@lru_cache`），只加载一次
+2. 如果词汇量过大（>10000），考虑分类加载
+3. 检查数据库索引是否正常
 
 ---
 

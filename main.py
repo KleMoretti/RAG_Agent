@@ -41,6 +41,7 @@ from src.data_processing.preprocessor import Preprocessor
 from src.data_processing.loader import DataLoader
 from src.data_processing.embedder import Embedder
 from src.retrieval.vector_store_fast import VectorStoreFast
+from src.vocabulary import VocabularyService, QueryEnhancer
 
 # Project data directories
 BASE_DIR = Path(__file__).parent
@@ -90,6 +91,23 @@ def get_vector_store() -> VectorStoreFast:
         m=8,  # PQ子向量数
         nbits=8,  # 每个子向量8位
     )
+
+
+@lru_cache(maxsize=1)
+def get_vocabulary_service():
+    """获取专业词汇服务（单例，带缓存）"""
+    from src.api.db import SessionLocal
+    db = SessionLocal()
+    vocab_service = VocabularyService(db)
+    vocab_service.initialize()  # 预加载词汇库到内存
+    return vocab_service
+
+
+@lru_cache(maxsize=1)
+def get_query_enhancer() -> QueryEnhancer:
+    """获取查询增强器（单例）"""
+    vocab_service = get_vocabulary_service()
+    return QueryEnhancer(vocab_service)
 
 
 def _safe_filename(name: str) -> str:
@@ -599,9 +617,23 @@ try:
             """执行RAG检索和LLM调用，带超时控制"""
             # Retrieval: search vector store for relevant chunks
             retrieved_context = ""
+            vocabulary_context = ""
             try:
+                # 1. 查询增强：识别专业词汇
+                enhancer = get_query_enhancer()
+                enhanced = enhancer.enhance(req.message, add_synonyms=True, add_related=True)
+                
+                # 如果识别到专业词汇，使用增强后的查询
+                query_for_search = enhanced.enhanced_query if enhanced.identified_terms else req.message
+                vocabulary_context = enhanced.vocabulary_context  # 保存专业词汇上下文
+                
+                if enhanced.identified_terms:
+                    print(f"🔍 识别到专业词汇: {[t['term'] for t in enhanced.identified_terms]}")
+                    print(f"📝 增强查询: {query_for_search}")
+                
+                # 2. 文本预处理和向量检索
                 pre = get_preprocessor()
-                cleaned_query = pre.clean_text(req.message)
+                cleaned_query = pre.clean_text(query_for_search)
                 if cleaned_query:
                     emb = get_embedder()
                     vec = emb.encode([cleaned_query], normalize=True)[0]
@@ -690,13 +722,22 @@ try:
                 # Retrieval is best-effort; continue without context on errors
                 retrieved_context = ""
 
-            # If we have retrieved context, prepend it to the user's message
+            # If we have retrieved context or vocabulary context, prepend them to the user's message
             user_message = req.message
+            context_parts = []
+            
+            # 添加专业词汇上下文（优先级最高）
+            if vocabulary_context:
+                context_parts.append(vocabulary_context)
+            
+            # 添加检索上下文
             if retrieved_context:
+                context_parts.append("【检索上下文】\n" + retrieved_context)
+            
+            if context_parts:
                 user_message = (
-                    "请结合以下检索到的相关内容回答问题。\n\n"
-                    + "【检索上下文】\n"
-                    + retrieved_context
+                    "请结合以下信息回答问题。\n\n"
+                    + "\n\n".join(context_parts)
                     + "\n\n【用户问题】\n"
                     + req.message
                 )
@@ -756,13 +797,26 @@ try:
 
                 # 1. 先执行 RAG 检索（带超时）
                 retrieved_context = ""
+                vocabulary_context = ""
                 sources = []
 
                 async def rag_retrieval():
-                    nonlocal retrieved_context, sources
+                    nonlocal retrieved_context, vocabulary_context, sources
                     try:
+                        # 1.1 查询增强：识别专业词汇
+                        enhancer = get_query_enhancer()
+                        enhanced = enhancer.enhance(req.message, add_synonyms=True, add_related=True)
+                        
+                        # 如果识别到专业词汇，使用增强后的查询
+                        query_for_search = enhanced.enhanced_query if enhanced.identified_terms else req.message
+                        vocabulary_context = enhanced.vocabulary_context
+                        
+                        if enhanced.identified_terms:
+                            print(f"🔍 [Stream] 识别到专业词汇: {[t['term'] for t in enhanced.identified_terms]}")
+                        
+                        # 1.2 文本预处理和向量检索
                         pre = get_preprocessor()
-                        cleaned_query = pre.clean_text(req.message)
+                        cleaned_query = pre.clean_text(query_for_search)
                         if cleaned_query:
                             emb = get_embedder()
                             vec = emb.encode([cleaned_query], normalize=True)[0]
@@ -864,16 +918,26 @@ try:
                 if sources:
                     yield f"data: {json_lib.dumps({'type': 'sources', 'sources': sources})}\n\n"
 
-                # 3. 构建用户消息
+                # 3. 构建用户消息（包含专业词汇和检索上下文）
                 user_message = req.message
-                if retrieved_context and not fallback_mode:
-                    user_message = (
-                        "请结合以下检索到的相关内容回答问题。\n\n"
-                        + "【检索上下文】\n"
-                        + retrieved_context
-                        + "\n\n【用户问题】\n"
-                        + req.message
-                    )
+                if (vocabulary_context or retrieved_context) and not fallback_mode:
+                    context_parts = []
+                    
+                    # 添加专业词汇上下文（优先级最高）
+                    if vocabulary_context:
+                        context_parts.append(vocabulary_context)
+                    
+                    # 添加检索上下文
+                    if retrieved_context:
+                        context_parts.append("【检索上下文】\n" + retrieved_context)
+                    
+                    if context_parts:
+                        user_message = (
+                            "请结合以下信息回答问题。\n\n"
+                            + "\n\n".join(context_parts)
+                            + "\n\n【用户问题】\n"
+                            + req.message
+                        )
 
                 # 4. 执行 Agent 推理（同步调用，在线程池中执行）
                 loop = asyncio.get_event_loop()
