@@ -65,6 +65,183 @@ python scripts/db_migrate.py add-prompts   # 添加 Prompt 管理表
 python scripts/db_migrate.py status        # 查看数据库状态
 ```
 
+### Test Users Management (测试用户管理)
+```bash
+# 初始化测试用户账号（三种角色）
+python scripts/init_test_users.py
+
+# 测试账号列表：
+# 1. 管理员 (admin)
+#    用户名: admin
+#    密码: admin123
+#    权限: 全部功能 + 系统管理
+#
+# 2. 技术经理 (manager)
+#    用户名: manager
+#    密码: manager123
+#    权限: 智能问答、知识库、设备管理、市场分析、工艺流程
+#
+# 3. 技术员 (technician)
+#    用户名: technician
+#    密码: tech123
+#    权限: 智能问答、知识库查询、设备诊断
+
+# 登录测试：
+# 前端: http://localhost:3000/login
+# 后端: http://localhost:8000/docs
+```
+
+**角色权限对比**：
+
+| 功能模块 | ADMIN | MANAGER | TECHNICIAN |
+|---------|-------|---------|------------|
+| AI 对话 | ✅ | ✅ | ✅ |
+| 知识库查询 | ✅ | ✅ | ✅ |
+| 文档上传 | ✅ | ✅ | ❌ |
+| 文档删除 | ✅ | ✅ | ❌ |
+| 设备管理 | ✅ | ✅ | ✅ (仅查看) |
+| 市场分析 | ✅ | ✅ | ❌ |
+| 工艺流程 | ✅ | ✅ | ✅ (仅查看) |
+| 环保监控 | ✅ | ✅ | ❌ |
+| 系统管理 | ✅ | ❌ | ❌ |
+
+**可用 Agent 列表**：
+
+| Agent 类型 | ADMIN | MANAGER | TECHNICIAN |
+|-----------|-------|---------|------------|
+| 通用助手 (general) | ✅ | ✅ | ✅ |
+| 工艺专家 (process) | ✅ | ✅ | ✅ |
+| 设备诊断 (equipment) | ✅ | ✅ | ✅ |
+| 市场分析师 (market) | ✅ | ✅ | ❌ |
+| 质量顾问 (quality) | ✅ | ✅ | ❌ |
+| 节能专家 (environment) | ✅ | ✅ | ❌ |
+
+**UI 差异说明**：
+- **ADMIN**: 侧边栏显示"系统管理"菜单项，可访问所有功能模块
+- **MANAGER**: 侧边栏显示设备管理、市场分析、工艺流程、环保监控，默认 Agent 为"通用助手"
+- **TECHNICIAN**: 侧边栏仅显示 AI 对话、知识库、设备管理、工艺流程，默认 Agent 为"设备诊断"
+
+### Role-based UI Testing Guide (角色差异化 UI 测试指南)
+
+**快速测试步骤**：
+
+1. **启动系统**：
+   ```bash
+   python manage.py start all
+   ```
+
+2. **初始化测试用户**（如未创建）：
+   ```bash
+   python scripts/init_test_users.py
+   ```
+
+3. **测试三种角色**：
+
+   **① 管理员角色 (ADMIN)**
+   ```
+   URL: http://localhost:3000/login
+   用户名: admin
+   密码: admin123
+   
+   预期 UI：
+   ✅ 侧边栏显示全部 6 个 Agent（通用、工艺、设备、市场、质量、环保）
+   ✅ 导航菜单：AI 对话、知识库、设备管理、市场分析、工艺流程、环保监控
+   ✅ 系统管理菜单项（独有）
+   ✅ 知识库页面：上传、删除、批量删除按钮全部可用
+   ✅ 用户信息显示："管理员"角色标签
+   ```
+
+   **② 技术经理角色 (MANAGER)**
+   ```
+   URL: http://localhost:3000/login
+   用户名: manager
+   密码: manager123
+   
+   预期 UI：
+   ✅ 侧边栏显示全部 6 个 Agent
+   ✅ 导航菜单：AI 对话、知识库、设备管理、市场分析、工艺流程、环保监控
+   ❌ 无"系统管理"菜单项
+   ✅ 知识库页面：上传、删除、批量删除按钮全部可用
+   ✅ 设备管理页面：显示"经理功能"提示卡片（紫色边框）
+   ✅ 市场分析页面：显示"经理功能"提示卡片（紫色边框）
+   ✅ 用户信息显示："技术经理"角色标签
+   ✅ 默认 Agent：通用助手
+   ```
+
+   **③ 技术员角色 (TECHNICIAN)**
+   ```
+   URL: http://localhost:3000/login
+   用户名: technician
+   密码: tech123
+   
+   预期 UI：
+   ✅ 侧边栏仅显示 3 个 Agent（设备诊断、工艺专家、通用助手）
+   ✅ 导航菜单：AI 对话、知识库、设备管理、工艺流程
+   ❌ 无"市场分析"、"环保监控"、"系统管理"菜单项
+   ❌ 知识库页面：无上传、删除按钮（仅查询）
+   ✅ 设备管理页面：显示"技术员功能"提示卡片（蓝色边框）
+   ❌ 访问 /dashboard/market 应被拦截或提示无权限
+   ✅ 用户信息显示："技术员"角色标签
+   ✅ 默认 Agent：设备诊断（自动选中）
+   ```
+
+**权限验证测试**：
+
+```bash
+# 测试技术员访问市场分析页面（应失败）
+# 1. 以 technician 身份登录
+# 2. 手动访问 http://localhost:3000/dashboard/market
+# 预期：侧边栏无此菜单项，直接访问应重定向或显示无权限
+
+# 测试文档上传权限
+# 1. 以 technician 身份登录
+# 2. 访问知识库页面
+# 预期：无"上传文档"按钮，无批量删除按钮
+
+# 测试 Agent 切换权限
+# 1. 以 technician 身份登录
+# 2. 查看 Agent 列表
+# 预期：仅显示 equipment, process, general 三个 Agent
+```
+
+**对比测试场景**：
+
+| 操作 | ADMIN | MANAGER | TECHNICIAN |
+|-----|-------|---------|------------|
+| 切换到"市场分析师"Agent | ✅ | ✅ | ❌ 不可见 |
+| 上传文档到知识库 | ✅ | ✅ | ❌ 无按钮 |
+| 访问 /dashboard/admin | ✅ | ❌ 无菜单项 | ❌ 无菜单项 |
+| 访问 /dashboard/market | ✅ | ✅ | ❌ 无菜单项 |
+| 批量删除文档 | ✅ | ✅ | ❌ 无按钮 |
+| 查看设备管理页面 | ✅ 红色卡片 | ✅ 紫色卡片 | ✅ 蓝色卡片 |
+
+**调试技巧**：
+
+```bash
+# 查看用户角色和权限
+python manage.py check --verbose
+
+# 查看用户最后登录时间
+python -c "from src.api.db import get_db; from src.api.models import User; \
+           db = next(get_db()); \
+           users = db.query(User).filter(User.username.in_(['admin', 'manager', 'technician'])).all(); \
+           [print(f'{u.username}: role={u.role}, last_login={u.last_login}') for u in users]"
+
+# 重置测试用户密码
+python scripts/init_test_users.py
+```
+
+**前端开发者检查清单**：
+
+- [ ] 角色标签正确显示在侧边栏用户菜单
+- [ ] Agent 列表根据角色过滤（technician 仅 3 个）
+- [ ] 导航菜单根据角色显示/隐藏
+- [ ] 知识库上传按钮根据 `can_upload` 权限显示
+- [ ] 设备/市场页面显示角色特定提示卡片
+- [ ] 默认 Agent 根据角色自动选中（technician → equipment）
+- [ ] 页面访问权限控制（middleware 或路由守卫）
+```
+
 ### Knowledge Graph Management
 ```bash
 # 知识图谱构建（从上传的文档自动提取实体和关系）

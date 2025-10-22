@@ -10,8 +10,43 @@ export interface ApiResponse<T = unknown> {
 }
 
 /**
+ * User roles
+ */
+export type UserRole = "admin" | "manager" | "technician" | "user";
+
+/**
+ * User interface
+ */
+export interface User {
+    id: number;
+    username: string;
+    role: UserRole;
+    email?: string;
+    is_active: boolean;
+    can_upload: boolean;
+    can_download: boolean;
+    can_chat: boolean;
+    can_access_admin?: boolean;
+    created_at?: string;
+    updated_at?: string;
+    last_login?: string;
+    notes?: string;
+}
+
+/**
+ * Auth response
+ */
+export interface LoginResponse {
+    access_token: string;
+    token_type: string;
+}
+
+export interface MeResponse extends User {}
+
+/**
  * Chat message interface
  */
+export interface ChatAttachment {</parameter>
 export interface ChatAttachment {
     fileId: string;
     fileName: string;

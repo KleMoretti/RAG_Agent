@@ -51,6 +51,11 @@ import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { AgentWithMetadata } from "@/lib/types/prompt";
 import { UserRole } from "@/lib/types/user";
+import {
+    getPermissionsByRole,
+    roleDisplayNames,
+    getRoleIcon,
+} from "@/lib/permissions";
 
 // 默认图标映射（用于向后兼容）
 const defaultIcons: Record<string, any> = {
@@ -70,11 +75,48 @@ const getAgentIcon = (agent: AgentWithMetadata) => {
     return defaultIcons[agent.name] || Bot;
 };
 
-const menu = [
-    { key: ROUTES.DASHBOARD, icon: Home, label: "AI 对话" },
-    { key: ROUTES.KNOWLEDGE, icon: Database, label: "知识库" },
-    // 以下页面尚未实现，暂时注释
-    // { key: ROUTES.WORKFLOW, icon: Workflow, label: "工艺流程" },
+// 基础菜单项（所有角色）
+const baseMenu = [
+    {
+        key: ROUTES.DASHBOARD,
+        icon: Home,
+        label: "AI 对话",
+        roles: ["admin", "manager", "technician", "user"],
+    },
+    {
+        key: ROUTES.KNOWLEDGE,
+        icon: Database,
+        label: "知识库",
+        roles: ["admin", "manager", "technician", "user"],
+    },
+];
+
+// 角色特定菜单项
+const roleSpecificMenu = [
+    {
+        key: "/dashboard/equipment",
+        icon: Wrench,
+        label: "设备管理",
+        roles: ["admin", "manager", "technician"],
+    },
+    {
+        key: "/dashboard/market",
+        icon: LineChart,
+        label: "市场分析",
+        roles: ["admin", "manager"],
+    },
+    {
+        key: "/dashboard/workflow",
+        icon: Workflow,
+        label: "工艺流程",
+        roles: ["admin", "manager", "technician"],
+    },
+    {
+        key: "/dashboard/environment",
+        icon: Zap,
+        label: "环保监控",
+        roles: ["admin", "manager"],
+    },
 ];
 
 // 管理员菜单项
@@ -105,6 +147,35 @@ export function AppSidebar() {
         setSelectedAgent: setSelectedAgentWithPrompt, // 重命名以避免冲突
     } = usePromptStore();
     const { user, logout } = useAuthStore();
+
+    // 根据用户角色过滤可用的 Agent
+    const availableAgents = React.useMemo(() => {
+        if (!user?.role) return agents;
+
+        const roleAgentMap: Record<string, string[]> = {
+            admin: [
+                "general",
+                "process",
+                "equipment",
+                "market",
+                "quality",
+                "environment",
+            ],
+            manager: [
+                "general",
+                "process",
+                "equipment",
+                "market",
+                "quality",
+                "environment",
+            ],
+            technician: ["equipment", "process", "general"],
+            user: ["general"],
+        };
+
+        const allowedAgents = roleAgentMap[user.role] || ["general"];
+        return agents.filter((agent) => allowedAgents.includes(agent.name));
+    }, [agents, user?.role]);
 
     // 初始化Prompt Store
     React.useEffect(() => {
@@ -331,7 +402,8 @@ export function AppSidebar() {
                                             </span>
                                         </div>
                                     </SidebarMenuItem>
-                                ) : !agents || agents.length === 0 ? (
+                                ) : !availableAgents ||
+                                  availableAgents.length === 0 ? (
                                     <SidebarMenuItem>
                                         <div className="flex items-center justify-center py-4">
                                             <span className="text-sm text-muted-foreground">
@@ -340,7 +412,7 @@ export function AppSidebar() {
                                         </div>
                                     </SidebarMenuItem>
                                 ) : (
-                                    agents.map((agent) => {
+                                    availableAgents.map((agent) => {
                                         const Icon = getAgentIcon(agent);
                                         const isSelected =
                                             selectedAgent === agent.id;
@@ -559,30 +631,66 @@ export function AppSidebar() {
                         </SidebarGroupLabel>
                         <SidebarGroupContent>
                             <SidebarMenu>
-                                {menu.map((item) => {
-                                    const Icon = item.icon;
-                                    const isActive = pathname === item.key;
-                                    return (
-                                        <SidebarMenuItem key={item.key}>
-                                            <SidebarMenuButton
-                                                onClick={() =>
-                                                    handleMenuClick(item.key)
-                                                }
-                                                isActive={isActive}
-                                                tooltip={item.label}
-                                            >
-                                                <Icon />
-                                                <span>{item.label}</span>
-                                            </SidebarMenuButton>
-                                        </SidebarMenuItem>
-                                    );
-                                })}
+                                {/* 基础菜单 */}
+                                {baseMenu
+                                    .filter((item) =>
+                                        user?.role
+                                            ? item.roles.includes(user.role)
+                                            : false,
+                                    )
+                                    .map((item) => {
+                                        const Icon = item.icon;
+                                        const isActive = pathname === item.key;
+                                        return (
+                                            <SidebarMenuItem key={item.key}>
+                                                <SidebarMenuButton
+                                                    onClick={() =>
+                                                        handleMenuClick(
+                                                            item.key,
+                                                        )
+                                                    }
+                                                    isActive={isActive}
+                                                    tooltip={item.label}
+                                                >
+                                                    <Icon />
+                                                    <span>{item.label}</span>
+                                                </SidebarMenuButton>
+                                            </SidebarMenuItem>
+                                        );
+                                    })}
+                                {/* 角色特定菜单 */}
+                                {roleSpecificMenu
+                                    .filter((item) =>
+                                        user?.role
+                                            ? item.roles.includes(user.role)
+                                            : false,
+                                    )
+                                    .map((item) => {
+                                        const Icon = item.icon;
+                                        const isActive = pathname === item.key;
+                                        return (
+                                            <SidebarMenuItem key={item.key}>
+                                                <SidebarMenuButton
+                                                    onClick={() =>
+                                                        handleMenuClick(
+                                                            item.key,
+                                                        )
+                                                    }
+                                                    isActive={isActive}
+                                                    tooltip={item.label}
+                                                >
+                                                    <Icon />
+                                                    <span>{item.label}</span>
+                                                </SidebarMenuButton>
+                                            </SidebarMenuItem>
+                                        );
+                                    })}
                             </SidebarMenu>
                         </SidebarGroupContent>
                     </SidebarGroup>
 
                     {/* Admin Menu - Only show for admin users */}
-                    {user?.role === UserRole.ADMIN && (
+                    {user?.role === "admin" && (
                         <SidebarGroup>
                             <SidebarGroupLabel className="menu-label">
                                 系统管理
@@ -636,7 +744,11 @@ export function AppSidebar() {
                                                 {user?.username || "用户"}
                                             </span>
                                             <span className="text-xs truncate text-muted-foreground">
-                                                钢铁行业专家
+                                                {user?.role
+                                                    ? roleDisplayNames[
+                                                          user.role as keyof typeof roleDisplayNames
+                                                      ]
+                                                    : "用户"}
                                             </span>
                                         </div>
                                         <ChevronsUpDown className="ml-auto size-4 group-data-[collapsible=icon]:hidden" />
