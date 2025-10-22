@@ -242,6 +242,94 @@ python scripts/init_test_users.py
 - [ ] 设备/市场页面显示角色特定提示卡片
 - [ ] 默认 Agent 根据角色自动选中（technician → equipment）
 - [ ] 页面访问权限控制（middleware 或路由守卫）
+- [x] **聊天记录按用户隔离**（已实现）
+
+### 用户聊天记录隔离
+
+**问题**：退出登录后以其他用户身份登录时，前一个用户的聊天记录仍可见
+
+**解决方案**（已实现 ✅）：
+
+1. **按用户隔离存储**：
+   - 聊天记录使用动态存储 key: `chat-store-user-{userId}`
+   - 每个用户的聊天记录独立存储在 localStorage
+   - 登录时自动加载当前用户的聊天记录
+
+2. **登录时清除旧数据**：
+   ```typescript
+   // authStore.ts - login 方法
+   login: (user, token) => {
+       localStorage.setItem("user-id", user.id.toString());
+       chatStore.clearUserData();  // 清除旧用户数据
+       chatStore.setCurrentUser(user.id);  // 设置新用户 ID
+   }
+   ```
+
+3. **退出登录时清理**：
+   ```typescript
+   // authStore.ts - logout 方法
+   logout: () => {
+       localStorage.removeItem("user-id");
+       chatStore.clearUserData();
+       chatStore.setCurrentUser(null);
+   }
+   ```
+
+4. **动态存储机制**：
+   ```typescript
+   // chatStore.ts - 自定义 storage
+   storage: createJSONStorage(() => ({
+       getItem: (name) => {
+           const userId = localStorage.getItem("user-id");
+           const key = userId ? `${name}-user-${userId}` : name;
+           return localStorage.getItem(key);
+       },
+       setItem: (name, value) => {
+           const userId = localStorage.getItem("user-id");
+           const key = userId ? `${name}-user-${userId}` : name;
+           localStorage.setItem(key, value);
+       },
+   }))
+   ```
+
+**验证步骤**：
+
+```bash
+# 1. 以 admin 身份登录
+# http://localhost:3000/login
+# 用户名: admin, 密码: admin123
+
+# 2. 创建一些聊天记录（发送几条消息）
+
+# 3. 退出登录
+
+# 4. 以 manager 身份登录
+# 用户名: manager, 密码: manager123
+
+# 5. 验证：
+# ✅ 看不到 admin 的聊天记录
+# ✅ 显示新的"新对话"会话
+# ✅ 侧边栏显示 manager 角色
+
+# 6. 再次退出并以 admin 身份登录
+
+# 7. 验证：
+# ✅ 之前的聊天记录恢复显示
+# ✅ 消息内容完整保留
+```
+
+**技术细节**：
+
+- 使用 Zustand persist 中间件的自定义 storage
+- 基于 `localStorage.getItem("user-id")` 动态生成存储 key
+- 登录/退出时同步清理和加载数据
+- 确保不同用户的数据完全隔离
+
+**注意事项**：
+
+- ⚠️ 当前实现仅在前端隔离，刷新页面会保留数据
+- 💡 长期方案：将聊天记录存储到后端数据库（chat_session、chat_message 表）
+- 💡 未来可添加：跨设备同步、云端备份、聊天记录导出等功能
 ```
 
 ### Knowledge Graph Management

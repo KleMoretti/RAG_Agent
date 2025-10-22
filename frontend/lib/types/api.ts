@@ -44,9 +44,8 @@ export interface LoginResponse {
 export interface MeResponse extends User {}
 
 /**
- * Chat message interface
+ * Chat attachment interface
  */
-export interface ChatAttachment {</parameter>
 export interface ChatAttachment {
     fileId: string;
     fileName: string;
@@ -57,6 +56,10 @@ export interface ChatAttachment {
     processedPath?: string;
     uploadedAt?: Date;
 }
+
+/**
+ * Chat message interface
+ */
 
 export interface ChatMessage {
     id: string;

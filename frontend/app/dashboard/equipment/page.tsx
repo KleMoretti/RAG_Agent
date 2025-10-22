@@ -1,8 +1,20 @@
 "use client";
 
 import { useAuthStore } from "@/store/authStore";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Wrench, AlertCircle, CheckCircle, Clock, TrendingUp } from "lucide-react";
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from "@/components/ui/card";
+import {
+    Wrench,
+    AlertCircle,
+    CheckCircle,
+    Clock,
+    TrendingUp,
+} from "lucide-react";
 import { roleDisplayNames } from "@/lib/permissions";
 
 export default function EquipmentPage() {
@@ -70,9 +82,16 @@ export default function EquipmentPage() {
         <div className="flex-1 space-y-6 p-8 overflow-y-auto">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">设备管理</h1>
+                    <h1 className="text-3xl font-bold tracking-tight">
+                        设备管理
+                    </h1>
                     <p className="text-muted-foreground mt-2">
-                        当前角色: {user?.role ? roleDisplayNames[user.role as keyof typeof roleDisplayNames] : "未知"}
+                        当前角色:{" "}
+                        {user?.role
+                            ? roleDisplayNames[
+                                  user.role as keyof typeof roleDisplayNames
+                              ]
+                            : "未知"}
                     </p>
                 </div>
             </div>
@@ -90,7 +109,9 @@ export default function EquipmentPage() {
                                 <Icon className={`h-4 w-4 ${stat.color}`} />
                             </CardHeader>
                             <CardContent>
-                                <div className="text-2xl font-bold">{stat.value}</div>
+                                <div className="text-2xl font-bold">
+                                    {stat.value}
+                                </div>
                                 <p className="text-xs text-muted-foreground">
                                     {stat.description}
                                 </p>
@@ -104,9 +125,7 @@ export default function EquipmentPage() {
             <Card>
                 <CardHeader>
                     <CardTitle>最近故障与维护</CardTitle>
-                    <CardDescription>
-                        最近的设备问题和维护任务
-                    </CardDescription>
+                    <CardDescription>最近的设备问题和维护任务</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="space-y-4">
@@ -117,14 +136,16 @@ export default function EquipmentPage() {
                             >
                                 <div className="space-y-1">
                                     <div className="flex items-center gap-2">
-                                        <p className="font-medium">{issue.equipment}</p>
+                                        <p className="font-medium">
+                                            {issue.equipment}
+                                        </p>
                                         <span
                                             className={`text-xs px-2 py-0.5 rounded ${
                                                 issue.severity === "高"
                                                     ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
                                                     : issue.severity === "中"
-                                                    ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
-                                                    : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                                      ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                                                      : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
                                             }`}
                                         >
                                             {issue.severity}
@@ -143,8 +164,8 @@ export default function EquipmentPage() {
                                             issue.status === "已完成"
                                                 ? "text-green-600 dark:text-green-400"
                                                 : issue.status === "处理中"
-                                                ? "text-blue-600 dark:text-blue-400"
-                                                : "text-yellow-600 dark:text-yellow-400"
+                                                  ? "text-blue-600 dark:text-blue-400"
+                                                  : "text-yellow-600 dark:text-yellow-400"
                                         }`}
                                     >
                                         {issue.status}
@@ -166,17 +187,14 @@ export default function EquipmentPage() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2">
-                        <p className="text-sm">
-                            ✅ 查看设备状态和故障记录
-                        </p>
+                        <p className="text-sm">✅ 查看设备状态和故障记录</p>
                         <p className="text-sm">
                             ✅ 使用设备诊断 Agent 进行故障排查
                         </p>
-                        <p className="text-sm">
-                            ✅ 查询设备维修手册和历史案例
-                        </p>
+                        <p className="text-sm">✅ 查询设备维修手册和历史案例</p>
                         <p className="text-sm text-muted-foreground">
-                            💡 提示: 切换到"设备诊断"Agent 开始对话式故障诊断
+                            💡 提示: 切换到&ldquo;设备诊断&rdquo;Agent
+                            开始对话式故障诊断
                         </p>
                     </CardContent>
                 </Card>
@@ -194,12 +212,8 @@ export default function EquipmentPage() {
                         <p className="text-sm">
                             ✅ 查看全部设备运行数据和分析报告
                         </p>
-                        <p className="text-sm">
-                            ✅ 设备升级投资决策支持
-                        </p>
-                        <p className="text-sm">
-                            ✅ 跨设备类型的综合分析
-                        </p>
+                        <p className="text-sm">✅ 设备升级投资决策支持</p>
+                        <p className="text-sm">✅ 跨设备类型的综合分析</p>
                         <p className="text-sm text-muted-foreground">
                             💡 提示: 使用 AI 分析设备维护成本和效率优化方案
                         </p>
@@ -216,15 +230,9 @@ export default function EquipmentPage() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2">
-                        <p className="text-sm">
-                            ✅ 全部设备管理权限
-                        </p>
-                        <p className="text-sm">
-                            ✅ 设备数据导入导出
-                        </p>
-                        <p className="text-sm">
-                            ✅ 系统配置和权限管理
-                        </p>
+                        <p className="text-sm">✅ 全部设备管理权限</p>
+                        <p className="text-sm">✅ 设备数据导入导出</p>
+                        <p className="text-sm">✅ 系统配置和权限管理</p>
                         <p className="text-sm text-muted-foreground">
                             💡 提示: 可在系统管理面板配置设备监控参数
                         </p>
