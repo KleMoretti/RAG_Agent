@@ -10,6 +10,7 @@ import type {
 interface UseStreamingChatOptions {
     sessionId?: string;
     agentId?: string;
+    agentType?: string; // 新增：Agent 类型（general, process, equipment, market, quality, environment）
     onMessageComplete?: (message: ChatMessage) => void;
     onError?: (error: Error) => void;
 }
@@ -71,7 +72,8 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}) {
                     body: JSON.stringify({
                         message,
                         session_id: options.sessionId,
-                        agent_id: options.agentId,
+                        agent_type: options.agentType || "general", // 添加 agent_type 参数
+                        user_role: null, // 可选：用户角色
                     }),
                     signal: abortController.signal,
                 });

@@ -859,7 +859,25 @@ frontend/
 #### 1. Role-based Permission System
 - **Role Definitions**: ADMIN, PRODUCTION, MANAGER, PURCHASER, ENV_EXPERT, TECHNICIAN
 - **Permission Control**: canUpload, canChat, canViewMarket, canManageEquipment, canAccessAdmin
-- **Role-specific Prompts**: Customized AI conversation presets for each role
+- ✅ **Agent-type Specific Prompts**: 每个 Agent 类型自动加载专属 system_prompt（已实现）
+  - **工作原理**: `/api/chat` 端点根据 `agent_type` 参数从数据库加载对应 Prompt
+  - **支持的 Agent 类型**: `general`, `process`, `equipment`, `market`, `quality`, `environment`
+  - **数据库表**: `agent` 表存储 Agent 定义，`system_prompt` 表存储 Prompt 内容
+  - **缓存机制**: Prompt 加载后缓存在内存，提升响应速度
+  - **前端使用**:
+    ```typescript
+    // 发送聊天请求时指定 agent_type
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      body: JSON.stringify({
+        message: '炼钢过程中如何控制温度？',
+        agent_type: 'process',  // 指定使用工艺专家 Agent
+        session_id: 'user_session_123'
+      })
+    });
+    ```
+  - **测试验证**: 运行 `python scripts/test_agent_prompts.py` 查看所有 Agent 和 Prompt
+  - **API 测试**: 运行 `python scripts/test_chat_api.py --comprehensive` 验证功能
 - 🆕 **Smart Role Switching**: AI automatically adjusts response depth and terminology based on detected user expertise
 - 🆕 **Collaboration Mode**: Multi-role team chat rooms for cross-functional decision-making
 - 🆕 **Conversation Context Sharing**: Share chat sessions with annotations between team members
@@ -1079,7 +1097,7 @@ interface DataConnector {
 ### Competitive Advantages
 1. **Dual-mode Operation**: Seamlessly works with or without production data integration
 2. **Industry-specific depth**: Dedicated steel domain embedding model, 30% improvement in technical terminology understanding
-3. **Role-based agents**: Customized prompts and permissions for different roles
+3. ✅ **Agent-type based prompts**: 已实现 - 每个 Agent 类型（general/process/equipment/market/quality/environment）自动加载数据库中的专属 system_prompt
 4. **Knowledge graph**: Process parameter correlation reasoning
 5. **Real-time + Historical**: Combines live data analysis with document-based knowledge
 6. **Graceful Degradation**: Full functionality in demo mode for testing and training
@@ -1133,6 +1151,133 @@ const handleUpload = async (file: File) => {
 ```
 
 ---
+
+## Agent 类型与 Prompt 管理
+
+### 已实现功能 ✅
+
+#### 1. Agent 类型系统
+每个 Agent 类型都有独特的 system_prompt，在聊天时自动加载：
+
+| Agent 类型 | 英文名 | 专业领域 | Prompt 示例 |
+|-----------|--------|---------|------------|
+| 通用助手 | `general` | 多领域知识问答 | "你是一个专业的AI助手，具备广泛的知识基础..." |
+| 工艺专家 | `process` | 钢铁生产工艺优化 | "你是钢铁生产工艺专家，专注于生产流程的优化..." |
+| 设备诊断 | `equipment` | 设备故障诊断维护 | "你是设备维护和故障诊断专家，具备丰富的设备管理经验..." |
+| 市场分析师 | `market` | 市场情报趋势分析 | "你是市场分析专家，专注于钢铁行业的市场情报..." |
+| 质量顾问 | `quality` | 质量控制改进 | "你是质量控制专家，专注于钢材质量管理..." |
+| 节能专家 | `environment` | 节能环保 | "你是环保节能专家，专注于钢铁生产的能耗优化..." |
+
+#### 2. 技术实现
+
+**后端 (main.py)**:
+```python
+# ChatRequest 模型扩展
+class ChatRequest(BaseModel):
+    message: str
+    session_id: str | None = None
+    agent_type: str = "general"  # 新增：Agent类型
+    user_role: str | None = None  # 新增：用户角色
+
+# Agent 创建时注入 system_prompt
+def _get_agent(session_id, agent_type="general", user_role=None):
+    # 1. 从数据库查询该 agent_type 的 Agent
+    agents = prompt_service.list_agents(agent_type=agent_type, is_active=True, limit=1)
+    
+    # 2. 获取该 Agent 的活跃 Prompt
+    prompt_response = prompt_service.get_agent_prompt(agent_id=agent.id, language="zh-CN")
+    system_prompt = prompt_response.content if prompt_response else None
+    
+    # 3. 创建 LLM 客户端时传入 system_prompt
+    llm = OpenAIClient(cfg, system_prompt=system_prompt)
+    agent = create_agent(llm, system_prompt=system_prompt)
+```
+
+**LLM 客户端 (src/llm/client.py)**:
+```python
+class OpenAIClient(LLMClient):
+    def __init__(self, config: OpenAIConfig, system_prompt: str | None = None):
+        self.system_prompt = system_prompt  # 存储 system_prompt
+    
+    def generate(self, prompt: str, system_prompt: str | None = None):
+        # 构建消息时添加 system 角色
+        messages = []
+        if system_prompt or self.system_prompt:
+            messages.append({"role": "system", "content": system_prompt or self.system_prompt})
+        messages.append({"role": "user", "content": prompt})
+        # 调用 OpenAI API
+```
+
+**前端使用示例**:
+```typescript
+// components/chat/ChatInterface.tsx
+const [agentType, setAgentType] = useState('general');
+
+// 发送消息时携带 agent_type
+const sendMessage = async (message: string) => {
+  const response = await fetch('/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      message,
+      agent_type: agentType,  // 🔑 关键：指定 Agent 类型
+      session_id: sessionId
+    })
+  });
+};
+
+// Agent 类型选择器
+<select value={agentType} onChange={(e) => setAgentType(e.target.value)}>
+  <option value="general">通用助手</option>
+  <option value="process">工艺专家</option>
+  <option value="equipment">设备诊断</option>
+  <option value="market">市场分析师</option>
+  <option value="quality">质量顾问</option>
+  <option value="environment">节能专家</option>
+</select>
+```
+
+#### 3. 测试与验证
+
+**查看所有 Agent 和 Prompt**:
+```bash
+python scripts/test_agent_prompts.py
+```
+
+**测试聊天 API**:
+```bash
+# 测试单个 Agent 类型
+python scripts/test_chat_api.py --agent-type process --message "炼钢过程中如何控制温度？"
+
+# 综合测试所有 Agent 类型
+python scripts/test_chat_api.py --comprehensive
+
+# 对比测试（相同问题不同 Agent 的回答差异）
+python scripts/test_chat_api.py --compare
+```
+
+**后端日志验证**:
+```bash
+tail -f backend.log | grep "Agent 加载"
+# 输出示例：
+# ✅ 已为 process Agent 加载专属 Prompt (ID: 3, 名称: 默认process提示词)
+# ✅ 已为 equipment Agent 加载专属 Prompt (ID: 5, 名称: 默认equipment提示词)
+```
+
+#### 4. 数据库管理
+
+**查看 Agent 列表**:
+```bash
+python manage.py check --verbose
+```
+
+**管理 Prompt (通过 API)**:
+- `GET /api/prompts/agents` - 获取所有 Agent
+- `GET /api/prompts/agents/{agent_id}` - 获取单个 Agent
+- `GET /api/prompts/{prompt_id}` - 获取 Prompt 详情
+- `POST /api/prompts` - 创建新 Prompt
+- `PUT /api/prompts/{prompt_id}` - 更新 Prompt
+- `POST /api/prompts/{prompt_
 
 ## Vector Store Architecture (Fast Version)
 

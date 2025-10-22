@@ -292,7 +292,7 @@ export function AppSidebar() {
                                     className="group-data-[collapsible=icon]:px-2"
                                 >
                                     <div className="flex flex-col gap-0.5 leading-relaxed group-data-[collapsible=icon]:hidden">
-                                        <span className="font-logo text-lg tracking-tight leading-tight">
+                                        <span className="font-michroma text-lg tracking-tight leading-tight">
                                             CastIron
                                         </span>
                                         <span className="text-xs text-sidebar-foreground/70 leading-relaxed">

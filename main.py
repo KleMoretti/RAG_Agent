@@ -82,9 +82,9 @@ def get_vector_store() -> VectorStoreFast:
     # Vectors we add below are already L2-normalized by Embedder.encode
     # use_ivf=None: 自动判断（<10k用Flat，>=10k自动升级为IVF）
     return VectorStoreFast(
-        dim=emb.dim, 
-        index_path=index_path, 
-        metadata_path=meta_path, 
+        dim=emb.dim,
+        index_path=index_path,
+        metadata_path=meta_path,
         normalize=False,
         use_ivf=None,  # 自动选择
         nlist=100,  # IVF聚类数
@@ -97,6 +97,7 @@ def get_vector_store() -> VectorStoreFast:
 def get_vocabulary_service():
     """获取专业词汇服务（单例，带缓存）"""
     from src.api.db import SessionLocal
+
     db = SessionLocal()
     vocab_service = VocabularyService(db)
     vocab_service.initialize()  # 预加载词汇库到内存
@@ -240,12 +241,13 @@ def process_and_index_file(
     return preview
 
 
-def create_agent(llm_client: LLMClient) -> RAGAgent:
+def create_agent(llm_client: LLMClient, system_prompt: str | None = None) -> RAGAgent:
     """
     Create and configure an agent with tools and a reasoning engine.
 
     Args:
         llm_client: LLM client for the reasoning engine.
+        system_prompt: Optional system prompt for the agent.
 
     Returns:
         A configured RAGAgent with steel industry tools.
@@ -257,16 +259,17 @@ def create_agent(llm_client: LLMClient) -> RAGAgent:
     agent = RAGAgent(
         llm_client=llm_client,
         reasoning_engine=reasoning_engine,
-        name="钢铁行业AI助手 (Steel Industry AI Assistant)"
+        name="钢铁行业AI助手 (Steel Industry AI Assistant)",
     )
 
     # Add basic tools
     agent.add_tool(SearchTool())
     agent.add_tool(CalculatorTool())
-    
+
     # Add steel industry specialized tools
     try:
         from src.agent.steel_tools import register_steel_tools
+
         tools_count = register_steel_tools(agent)
         print(f"✅ 已注册 {tools_count} 个钢铁专业工具")
     except Exception as e:
@@ -385,6 +388,12 @@ try:
     class ChatRequest(BaseModel):
         message: str
         session_id: str | None = None
+        agent_type: str = (
+            "general"  # Agent类型：general, process, equipment, market, quality
+        )
+        user_role: str | None = (
+            None  # 用户角色：ADMIN, TECHNICIAN, MANAGER, PURCHASER等
+        )
 
     class ChatResponse(BaseModel):
         response: str
@@ -449,10 +458,58 @@ try:
 
     _app_agents: dict[str, RAGAgent] = {}
 
-    def _get_agent(session_id: str | None) -> RAGAgent:
-        key = session_id or "default"
+    def _get_agent(
+        session_id: str | None,
+        agent_type: str = "general",
+        user_role: str | None = None,
+    ) -> RAGAgent:
+        """
+        获取或创建 Agent 实例，支持根据 agent_type 加载对应的 system_prompt
+
+        Args:
+            session_id: 会话ID
+            agent_type: Agent类型（general, process, equipment, market, quality）
+            user_role: 用户角色（ADMIN, TECHNICIAN, MANAGER等）
+        """
+        # 为不同的 agent_type 创建独立的 key
+        key = f"{session_id or 'default'}_{agent_type}"
         if key in _app_agents:
             return _app_agents[key]
+
+        # 从数据库加载对应的 system_prompt
+        system_prompt = None
+        try:
+            from src.api.db import SessionLocal
+            from src.prompt_management.service import PromptService
+
+            db = SessionLocal()
+            try:
+                prompt_service = PromptService(db)
+
+                # 尝试获取该 agent_type 的活跃 Agent
+                agents = prompt_service.list_agents(
+                    agent_type=agent_type, is_active=True, limit=1
+                )
+                if agents:
+                    agent_id = agents[0].id
+                    # 使用 get_agent_prompt 方法获取该 Agent 的活跃默认 prompt
+                    prompt_response = prompt_service.get_agent_prompt(
+                        agent_id=agent_id, language="zh-CN", use_cache=True
+                    )
+                    if prompt_response:
+                        system_prompt = prompt_response.content
+                        print(
+                            f"✅ 已为 {agent_type} Agent 加载专属 Prompt (ID: {prompt_response.id}, 名称: {prompt_response.name})"
+                        )
+                    else:
+                        print(f"⚠️ {agent_type} Agent 无活跃 Prompt，使用默认配置")
+                else:
+                    print(f"⚠️ 未找到 {agent_type} 类型的 Agent，使用默认配置")
+            finally:
+                db.close()
+        except Exception as e:
+            print(f"⚠️ 加载 Prompt 失败: {e}，使用默认配置")
+
         # Try multiple env var names for convenience
         api_key = os.environ.get("QWEN_API_KEY") or os.environ.get("OPENAI_API_KEY")
         if api_key:
@@ -462,10 +519,11 @@ try:
                 max_tokens=10000,  # 增加token限制，支持复杂的知识图谱回答
                 temperature=0.7,
             )
-            llm = OpenAIClient(cfg)
+            llm = OpenAIClient(cfg, system_prompt=system_prompt)
         else:
             llm = EchoClient(model=os.environ.get("LLM_MODEL", "echo-ui"))
-        agent = create_agent(llm)
+
+        agent = create_agent(llm, system_prompt=system_prompt)
         _app_agents[key] = agent
         return agent
 
@@ -606,7 +664,8 @@ try:
         import time
         from config.settings import get_settings
 
-        agent = _get_agent(req.session_id)
+        # 根据 agent_type 和 user_role 获取对应的 Agent
+        agent = _get_agent(req.session_id, req.agent_type, req.user_role)
         fallback_mode = False
 
         # 从配置获取RAG超时时间
@@ -621,16 +680,24 @@ try:
             try:
                 # 1. 查询增强：识别专业词汇
                 enhancer = get_query_enhancer()
-                enhanced = enhancer.enhance(req.message, add_synonyms=True, add_related=True)
-                
+                enhanced = enhancer.enhance(
+                    req.message, add_synonyms=True, add_related=True
+                )
+
                 # 如果识别到专业词汇，使用增强后的查询
-                query_for_search = enhanced.enhanced_query if enhanced.identified_terms else req.message
+                query_for_search = (
+                    enhanced.enhanced_query
+                    if enhanced.identified_terms
+                    else req.message
+                )
                 vocabulary_context = enhanced.vocabulary_context  # 保存专业词汇上下文
-                
+
                 if enhanced.identified_terms:
-                    print(f"🔍 识别到专业词汇: {[t['term'] for t in enhanced.identified_terms]}")
+                    print(
+                        f"🔍 识别到专业词汇: {[t['term'] for t in enhanced.identified_terms]}"
+                    )
                     print(f"📝 增强查询: {query_for_search}")
-                
+
                 # 2. 文本预处理和向量检索
                 pre = get_preprocessor()
                 cleaned_query = pre.clean_text(query_for_search)
@@ -646,13 +713,16 @@ try:
                         file_id = h.get("file_id")
                         chunk_id = h.get("chunk_id")
                         file_path = h.get("file")
-                        
+
                         # 兼容旧metadata格式：从file字段推断完整内容
                         if file_id is None and file_path:
                             try:
                                 # 尝试从processed目录读取对应的txt文件（旧格式）
                                 file_path_obj = Path(file_path)
-                                if file_path_obj.exists() and file_path_obj.suffix == ".txt":
+                                if (
+                                    file_path_obj.exists()
+                                    and file_path_obj.suffix == ".txt"
+                                ):
                                     with file_path_obj.open("r", encoding="utf-8") as f:
                                         full_text = f.read()
                                     # 简单分块：按chunk_size=1000字符分割
@@ -666,7 +736,7 @@ try:
                                         continue
                             except Exception:
                                 pass
-                        
+
                         # 新格式：使用file_id查找chunks文件
                         if file_id is None or chunk_id is None:
                             # Fallback to preview（只有前50字符）
@@ -725,15 +795,15 @@ try:
             # If we have retrieved context or vocabulary context, prepend them to the user's message
             user_message = req.message
             context_parts = []
-            
+
             # 添加专业词汇上下文（优先级最高）
             if vocabulary_context:
                 context_parts.append(vocabulary_context)
-            
+
             # 添加检索上下文
             if retrieved_context:
                 context_parts.append("【检索上下文】\n" + retrieved_context)
-            
+
             if context_parts:
                 user_message = (
                     "请结合以下信息回答问题。\n\n"
@@ -788,7 +858,8 @@ try:
 
         async def generate():
             try:
-                agent = _get_agent(req.session_id)
+                # 根据 agent_type 和 user_role 获取对应的 Agent
+                agent = _get_agent(req.session_id, req.agent_type, req.user_role)
                 fallback_mode = False
 
                 # 从配置获取RAG超时时间
@@ -805,15 +876,23 @@ try:
                     try:
                         # 1.1 查询增强：识别专业词汇
                         enhancer = get_query_enhancer()
-                        enhanced = enhancer.enhance(req.message, add_synonyms=True, add_related=True)
-                        
+                        enhanced = enhancer.enhance(
+                            req.message, add_synonyms=True, add_related=True
+                        )
+
                         # 如果识别到专业词汇，使用增强后的查询
-                        query_for_search = enhanced.enhanced_query if enhanced.identified_terms else req.message
+                        query_for_search = (
+                            enhanced.enhanced_query
+                            if enhanced.identified_terms
+                            else req.message
+                        )
                         vocabulary_context = enhanced.vocabulary_context
-                        
+
                         if enhanced.identified_terms:
-                            print(f"🔍 [Stream] 识别到专业词汇: {[t['term'] for t in enhanced.identified_terms]}")
-                        
+                            print(
+                                f"🔍 [Stream] 识别到专业词汇: {[t['term'] for t in enhanced.identified_terms]}"
+                            )
+
                         # 1.2 文本预处理和向量检索
                         pre = get_preprocessor()
                         cleaned_query = pre.clean_text(query_for_search)
@@ -835,8 +914,13 @@ try:
                                 if file_id is None and file_path:
                                     try:
                                         file_path_obj = Path(file_path)
-                                        if file_path_obj.exists() and file_path_obj.suffix == ".txt":
-                                            with file_path_obj.open("r", encoding="utf-8") as f:
+                                        if (
+                                            file_path_obj.exists()
+                                            and file_path_obj.suffix == ".txt"
+                                        ):
+                                            with file_path_obj.open(
+                                                "r", encoding="utf-8"
+                                            ) as f:
                                                 full_text = f.read()
                                             chunk_size = 1000
                                             if chunk_id is not None:
@@ -844,13 +928,19 @@ try:
                                                 end = start + chunk_size
                                                 chunk_content = full_text[start:end]
                                                 if chunk_content.strip():
-                                                    contexts.append(chunk_content.strip())
-                                                    sources.append({
-                                                        "file": file_name,
-                                                        "chunk_id": chunk_id,
-                                                        "score": score,
-                                                        "preview": chunk_content[:200]
-                                                    })
+                                                    contexts.append(
+                                                        chunk_content.strip()
+                                                    )
+                                                    sources.append(
+                                                        {
+                                                            "file": file_name,
+                                                            "chunk_id": chunk_id,
+                                                            "score": score,
+                                                            "preview": chunk_content[
+                                                                :200
+                                                            ],
+                                                        }
+                                                    )
                                                 continue
                                     except Exception:
                                         pass
@@ -922,15 +1012,15 @@ try:
                 user_message = req.message
                 if (vocabulary_context or retrieved_context) and not fallback_mode:
                     context_parts = []
-                    
+
                     # 添加专业词汇上下文（优先级最高）
                     if vocabulary_context:
                         context_parts.append(vocabulary_context)
-                    
+
                     # 添加检索上下文
                     if retrieved_context:
                         context_parts.append("【检索上下文】\n" + retrieved_context)
-                    
+
                     if context_parts:
                         user_message = (
                             "请结合以下信息回答问题。\n\n"

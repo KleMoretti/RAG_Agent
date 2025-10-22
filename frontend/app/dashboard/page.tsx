@@ -422,6 +422,7 @@ export default function DashboardPage() {
     } = useStreamingChat({
         sessionId: currentSessionId || undefined,
         agentId: selectedAgent,
+        agentType: currentAgentData?.name || selectedAgent, // 修正：使用 Agent 的 name 字段（如 "general", "process"）作为 agent_type
         onMessageComplete: (message: ChatMessage) => {
             const sessionId =
                 currentSessionId || createSession(`${currentAgent.name}对话`);
