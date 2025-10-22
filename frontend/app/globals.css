@@ -124,8 +124,8 @@
 }
 
 @layer utilities {
-    font-michroma {
-        font-family: "Michroma";
+    .font-michroma {
+        font-family: "Michroma", sans-serif;
     }
 }
 
