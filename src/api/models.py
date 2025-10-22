@@ -348,3 +348,158 @@ class Vocabulary(Base):
         Index("idx_term_category", "term", "category"),
         {"extend_existing": True},
     )
+
+
+class MaterialCategory(str, Enum):
+    """原料分类枚举"""
+    
+    IRON_ORE = "iron_ore"  # 铁矿石
+    COAL = "coal"  # 煤炭
+    COKE = "coke"  # 焦炭
+    SCRAP = "scrap"  # 废钢
+    ALLOY = "alloy"  # 合金
+    OTHER = "other"  # 其他
+
+
+class ProductCategory(str, Enum):
+    """产品分类枚举"""
+    
+    REBAR = "rebar"  # 螺纹钢
+    HOT_ROLLED = "hot_rolled"  # 热轧卷板
+    COLD_ROLLED = "cold_rolled"  # 冷轧卷板
+    PLATE = "plate"  # 中厚板
+    WIRE = "wire"  # 线材
+    OTHER = "other"  # 其他
+
+
+class MarketPriceData(Base):
+    """市场价格数据表"""
+
+    __tablename__ = "market_price_data"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    material_type: Mapped[str] = mapped_column(
+        String(64), nullable=False, index=True
+    )  # 材料类型（铁矿石、螺纹钢等）
+    category: Mapped[str] = mapped_column(
+        String(32), nullable=False, index=True
+    )  # 分类（raw_material/product）
+    price: Mapped[float] = mapped_column(nullable=False)  # 价格（元/吨）
+    unit: Mapped[str] = mapped_column(String(16), default="元/吨", nullable=False)  # 单位
+    region: Mapped[str | None] = mapped_column(String(64), nullable=True)  # 地区
+    source: Mapped[str | None] = mapped_column(String(128), nullable=True)  # 数据来源
+    price_date: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, index=True
+    )  # 价格日期
+    change_rate: Mapped[float | None] = mapped_column(nullable=True)  # 涨跌幅（%）
+    change_amount: Mapped[float | None] = mapped_column(nullable=True)  # 涨跌金额
+    volume: Mapped[float | None] = mapped_column(nullable=True)  # 成交量（吨）
+    high_price: Mapped[float | None] = mapped_column(nullable=True)  # 最高价
+    low_price: Mapped[float | None] = mapped_column(nullable=True)  # 最低价
+    meta_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # 其他元数据
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, nullable=False
+    )
+    created_by: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("user.id"), nullable=True
+    )
+
+    # 索引
+    __table_args__ = (
+        Index("idx_material_date", "material_type", "price_date"),
+        Index("idx_category_date", "category", "price_date"),
+        Index("idx_date", "price_date"),
+        {"extend_existing": True},
+    )
+
+
+class MarketNews(Base):
+    """市场新闻资讯表"""
+
+    __tablename__ = "market_news"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(String(256), nullable=False)  # 新闻标题
+    content: Mapped[str | None] = mapped_column(Text, nullable=True)  # 新闻内容
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)  # 摘要
+    source: Mapped[str] = mapped_column(String(128), nullable=False)  # 来源
+    category: Mapped[str] = mapped_column(
+        String(64), nullable=False, index=True
+    )  # 分类（供应/需求/政策等）
+    url: Mapped[str | None] = mapped_column(String(512), nullable=True)  # 原文链接
+    publish_time: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, index=True
+    )  # 发布时间
+    sentiment: Mapped[str | None] = mapped_column(
+        String(16), nullable=True
+    )  # 情绪（positive/negative/neutral）
+    keywords: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)  # 关键词
+    related_materials: Mapped[list[str] | None] = mapped_column(
+        JSON, nullable=True
+    )  # 相关材料
+    is_important: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )  # 是否重要
+    meta_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # 其他元数据
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, nullable=False
+    )
+    created_by: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("user.id"), nullable=True
+    )
+
+    # 索引
+    __table_args__ = (
+        Index("idx_category_time", "category", "publish_time"),
+        Index("idx_publish_time", "publish_time"),
+        {"extend_existing": True},
+    )
+
+
+class MarketDataSource(Base):
+    """市场数据源配置表"""
+
+    __tablename__ = "market_data_source"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(
+        String(128), unique=True, nullable=False
+    )  # 数据源名称
+    source_type: Mapped[str] = mapped_column(
+        String(32), nullable=False
+    )  # 类型（api/upload/manual）
+    api_url: Mapped[str | None] = mapped_column(String(512), nullable=True)  # API地址
+    api_key: Mapped[str | None] = mapped_column(String(256), nullable=True)  # API密钥
+    headers: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # 请求头
+    params: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # 请求参数
+    data_format: Mapped[str | None] = mapped_column(
+        String(32), nullable=True
+    )  # 数据格式（json/xml/csv）
+    update_frequency: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )  # 更新频率（分钟）
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    last_update: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True
+    )  # 最后更新时间
+    error_count: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False
+    )  # 错误次数
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)  # 描述
+    meta_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # 其他配置
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+    created_by: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("user.id"), nullable=True
+    )
+
+    # 索引
+    __table_args__ = (
+        Index("idx_source_type", "source_type"),
+        Index("idx_is_active", "is_active"),
+        {"extend_existing": True},
+    )

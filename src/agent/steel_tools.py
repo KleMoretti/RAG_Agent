@@ -1049,6 +1049,15 @@ def register_steel_tools(agent) -> int:
         QualityAnalysisTool()
     ]
     
+    # 添加市场查询工具
+    try:
+        from src.agent.market_tools.market_query_tool import market_query_tool
+        tools.append(market_query_tool)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"市场查询工具加载失败: {e}")
+    
     for tool in tools:
         agent.add_tool(tool)
     

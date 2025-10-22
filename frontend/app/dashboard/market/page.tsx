@@ -2,101 +2,213 @@
 
 import { useAuthStore } from "@/store/authStore";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { LineChart, TrendingUp, TrendingDown, DollarSign, BarChart3 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { LineChart, TrendingUp, TrendingDown, DollarSign, BarChart3, Upload, RefreshCw, AlertCircle } from "lucide-react";
 import { roleDisplayNames } from "@/lib/permissions";
+import { useEffect, useState, useCallback } from "react";
+import { getMarketSummary, getNews, getTrendAnalysis, batchUploadPrices } from "@/lib/api/market";
+import type { MarketSummary, MarketNews, TrendAnalysis } from "@/lib/api/market";
+import { toast } from "sonner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function MarketPage() {
     const { user } = useAuthStore();
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [summary, setSummary] = useState<MarketSummary | null>(null);
+    const [news, setNews] = useState<MarketNews[]>([]);
+    const [trends, setTrends] = useState<TrendAnalysis[]>([]);
+    const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
+    const [uploadFile, setUploadFile] = useState<File | null>(null);
+    const [uploading, setUploading] = useState(false);
 
-    const marketStats = [
-        {
-            title: "铁矿石价格",
-            value: "¥890/吨",
-            change: "+2.3%",
-            trend: "up",
-            icon: TrendingUp,
-            description: "较上周上涨",
-        },
-        {
-            title: "螺纹钢价格",
-            value: "¥4,250/吨",
-            change: "-1.5%",
-            trend: "down",
-            icon: TrendingDown,
-            description: "较上周下跌",
-        },
-        {
-            title: "焦炭价格",
-            value: "¥2,180/吨",
-            change: "+0.8%",
-            trend: "up",
-            icon: TrendingUp,
-            description: "较上周上涨",
-        },
-        {
-            title: "废钢价格",
-            value: "¥2,650/吨",
-            change: "+3.2%",
-            trend: "up",
-            icon: TrendingUp,
-            description: "较上周上涨",
-        },
-    ];
+    // 加载市场数据
+    const loadMarketData = useCallback(async () => {
+        try {
+            setLoading(true);
+            const [summaryData, newsData, trendsData] = await Promise.all([
+                getMarketSummary(),
+                getNews({ limit: 10 }),
+                getTrendAnalysis(["铁矿石", "螺纹钢", "焦炭", "废钢"]),
+            ]);
+            setSummary(summaryData);
+            setNews(newsData);
+            setTrends(trendsData);
+        } catch (error) {
+            console.error("加载市场数据失败:", error);
+            toast.error("加载市场数据失败，显示模拟数据");
+        } finally {
+            setLoading(false);
+        }
+    }, []);
 
-    const marketNews = [
-        {
-            id: "1",
-            title: "国内铁矿石港口库存持续下降",
-            source: "钢铁行业资讯",
-            time: "2小时前",
-            category: "供应",
-        },
-        {
-            id: "2",
-            title: "建筑钢材需求季节性回升",
-            source: "市场分析",
-            time: "5小时前",
-            category: "需求",
-        },
-        {
-            id: "3",
-            title: "环保限产政策调整影响产量",
-            source: "政策动态",
-            time: "昨天",
-            category: "政策",
-        },
-        {
-            id: "4",
-            title: "进口铁矿石到港量预计增加",
-            source: "国际贸易",
-            time: "2天前",
-            category: "供应",
-        },
-    ];
+    useEffect(() => {
+        loadMarketData();
+    }, [loadMarketData]);
 
-    const priceForecasts = [
-        {
-            material: "铁矿石",
-            current: "¥890/吨",
-            nextWeek: "¥900-920/吨",
-            trend: "上涨",
-            confidence: "中等",
-        },
-        {
-            material: "螺纹钢",
-            current: "¥4,250/吨",
-            nextWeek: "¥4,200-4,280/吨",
-            trend: "震荡",
-            confidence: "较高",
-        },
-        {
-            material: "热卷",
-            current: "¥4,180/吨",
-            nextWeek: "¥4,150-4,220/吨",
-            trend: "震荡",
-            confidence: "较高",
-        },
-    ];
+    // 刷新数据
+    const handleRefresh = async () => {
+        setRefreshing(true);
+        await loadMarketData();
+        setRefreshing(false);
+        toast.success("数据已刷新");
+    };
+
+    // 处理文件上传
+    const handleFileUpload = async () => {
+        if (!uploadFile) {
+            toast.error("请选择文件");
+            return;
+        }
+
+        try {
+            setUploading(true);
+            const result = await batchUploadPrices(uploadFile);
+            toast.success(result.message);
+            setIsUploadDialogOpen(false);
+            setUploadFile(null);
+            // 重新加载数据
+            await loadMarketData();
+        } catch (error: any) {
+            console.error("上传失败:", error);
+            toast.error(error.response?.data?.detail || "上传失败");
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    // 使用真实数据或模拟数据
+    const displayPrices = summary?.latest_prices.slice(0, 4) || [];
+    const marketStats = displayPrices.length > 0
+        ? displayPrices.map((p) => ({
+              title: p.material_type,
+              value: `¥${p.price}${p.unit || "/吨"}`,
+              change: p.change_rate ? `${p.change_rate > 0 ? "+" : ""}${p.change_rate.toFixed(1)}%` : "N/A",
+              trend: p.change_rate && p.change_rate > 0 ? ("up" as const) : ("down" as const),
+              icon: p.change_rate && p.change_rate > 0 ? TrendingUp : TrendingDown,
+              description: "较上周" + (p.change_rate && p.change_rate > 0 ? "上涨" : "下跌"),
+          }))
+        : [
+              {
+                  title: "铁矿石价格",
+                  value: "¥890/吨",
+                  change: "+2.3%",
+                  trend: "up" as const,
+                  icon: TrendingUp,
+                  description: "较上周上涨",
+              },
+              {
+                  title: "螺纹钢价格",
+                  value: "¥4,250/吨",
+                  change: "-1.5%",
+                  trend: "down" as const,
+                  icon: TrendingDown,
+                  description: "较上周下跌",
+              },
+              {
+                  title: "焦炭价格",
+                  value: "¥2,180/吨",
+                  change: "+0.8%",
+                  trend: "up" as const,
+                  icon: TrendingUp,
+                  description: "较上周上涨",
+              },
+              {
+                  title: "废钢价格",
+                  value: "¥2,650/吨",
+                  change: "+3.2%",
+                  trend: "up" as const,
+                  icon: TrendingUp,
+                  description: "较上周上涨",
+              },
+          ];
+
+    // 显示新闻（真实数据或模拟数据）
+    const displayNews = news.length > 0
+        ? news.map((n) => ({
+              id: n.id.toString(),
+              title: n.title,
+              source: n.source,
+              time: new Date(n.publish_time).toLocaleString("zh-CN", {
+                  month: "numeric",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+              }),
+              category: n.category,
+          }))
+        : [
+              {
+                  id: "1",
+                  title: "国内铁矿石港口库存持续下降",
+                  source: "钢铁行业资讯",
+                  time: "2小时前",
+                  category: "供应",
+              },
+              {
+                  id: "2",
+                  title: "建筑钢材需求季节性回升",
+                  source: "市场分析",
+                  time: "5小时前",
+                  category: "需求",
+              },
+              {
+                  id: "3",
+                  title: "环保限产政策调整影响产量",
+                  source: "政策动态",
+                  time: "昨天",
+                  category: "政策",
+              },
+              {
+                  id: "4",
+                  title: "进口铁矿石到港量预计增加",
+                  source: "国际贸易",
+                  time: "2天前",
+                  category: "供应",
+              },
+          ];
+
+    // 显示趋势预测（真实数据或模拟数据）
+    const displayForecasts = trends.length > 0
+        ? trends.map((t) => ({
+              material: t.material_type,
+              current: `¥${t.current_price}/吨`,
+              nextWeek: `¥${t.forecast_7d.min}-${t.forecast_7d.max}/吨`,
+              trend: t.trend,
+              confidence: t.confidence,
+          }))
+        : [
+              {
+                  material: "铁矿石",
+                  current: "¥890/吨",
+                  nextWeek: "¥900-920/吨",
+                  trend: "上涨",
+                  confidence: "中等",
+              },
+              {
+                  material: "螺纹钢",
+                  current: "¥4,250/吨",
+                  nextWeek: "¥4,200-4,280/吨",
+                  trend: "震荡",
+                  confidence: "较高",
+              },
+              {
+                  material: "热卷",
+                  current: "¥4,180/吨",
+                  nextWeek: "¥4,150-4,220/吨",
+                  trend: "震荡",
+                  confidence: "较高",
+              },
+          ];
+
+    const canManageMarket = user?.role === "admin" || user?.role === "manager";
 
     return (
         <div className="flex-1 space-y-6 p-8 overflow-y-auto">
@@ -107,7 +219,37 @@ export default function MarketPage() {
                         当前角色: {user?.role ? roleDisplayNames[user.role as keyof typeof roleDisplayNames] : "未知"}
                     </p>
                 </div>
+                <div className="flex gap-2">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleRefresh}
+                        disabled={refreshing}
+                    >
+                        <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
+                        刷新数据
+                    </Button>
+                    {canManageMarket && (
+                        <Button
+                            size="sm"
+                            onClick={() => setIsUploadDialogOpen(true)}
+                        >
+                            <Upload className="h-4 w-4 mr-2" />
+                            上传数据
+                        </Button>
+                    )}
+                </div>
             </div>
+
+            {/* 无数据提示 */}
+            {!loading && displayPrices.length === 0 && (
+                <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                        暂无市场数据，显示模拟数据。请{canManageMarket ? "上传数据文件或" : ""}联系管理员配置数据源。
+                    </AlertDescription>
+                </Alert>
+            )}
 
             {/* 价格统计卡片 */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -160,24 +302,24 @@ export default function MarketPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-4">
-                            {marketNews.map((news) => (
+                            {displayNews.map((newsItem) => (
                                 <div
-                                    key={news.id}
+                                    key={newsItem.id}
                                     className="border-b pb-3 last:border-0 last:pb-0"
                                 >
                                     <div className="flex items-start justify-between gap-2">
                                         <div className="space-y-1 flex-1">
                                             <p className="font-medium text-sm leading-tight">
-                                                {news.title}
+                                                {newsItem.title}
                                             </p>
                                             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                                <span>{news.source}</span>
+                                                <span>{newsItem.source}</span>
                                                 <span>•</span>
-                                                <span>{news.time}</span>
+                                                <span>{newsItem.time}</span>
                                             </div>
                                         </div>
                                         <span className="text-xs px-2 py-1 bg-primary/10 text-primary rounded shrink-0">
-                                            {news.category}
+                                            {newsItem.category}
                                         </span>
                                     </div>
                                 </div>
@@ -196,7 +338,7 @@ export default function MarketPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-4">
-                            {priceForecasts.map((forecast) => (
+                            {displayForecasts.map((forecast) => (
                                 <div
                                     key={forecast.material}
                                     className="border-b pb-3 last:border-0 last:pb-0"
@@ -284,26 +426,72 @@ export default function MarketPage() {
                             ✅ 导出市场数据和分析报告
                         </p>
                         <p className="text-sm text-muted-foreground">
-                            💡 提示: 可在系统管理面板配置外部市场数据接口
+                            💡 提示: 可上传Excel/CSV文件批量导入市场数据
                         </p>
                     </CardContent>
                 </Card>
             )}
 
-            {/* 占位提示 */}
-            <Card className="border-dashed">
-                <CardHeader>
-                    <CardTitle>🚧 功能开发中</CardTitle>
-                    <CardDescription>
-                        市场分析功能正在开发中，敬请期待...
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <p className="text-sm text-muted-foreground">
-                        此页面将包含：价格趋势图表、市场情报聚合、AI 价格预测、供应商对比分析等功能
-                    </p>
-                </CardContent>
-            </Card>
+            {/* 数据上传对话框 */}
+            <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>上传市场数据</DialogTitle>
+                        <DialogDescription>
+                            支持 Excel (.xlsx, .xls) 和 CSV 格式。
+                            <br />
+                            文件应包含以下列: material_type, category, price, price_date
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-8 text-center">
+                            <input
+                                type="file"
+                                accept=".xlsx,.xls,.csv"
+                                onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                        setUploadFile(file);
+                                    }
+                                }}
+                                className="hidden"
+                                id="file-upload"
+                            />
+                            <label
+                                htmlFor="file-upload"
+                                className="cursor-pointer flex flex-col items-center space-y-2"
+                            >
+                                <Upload className="h-12 w-12 text-gray-400" />
+                                <span className="text-sm text-gray-600 dark:text-gray-400">
+                                    点击选择文件或拖拽文件到这里
+                                </span>
+                                {uploadFile && (
+                                    <span className="text-sm font-medium text-primary">
+                                        {uploadFile.name}
+                                    </span>
+                                )}
+                            </label>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                            <Button
+                                variant="outline"
+                                onClick={() => {
+                                    setIsUploadDialogOpen(false);
+                                    setUploadFile(null);
+                                }}
+                            >
+                                取消
+                            </Button>
+                            <Button
+                                onClick={handleFileUpload}
+                                disabled={!uploadFile || uploading}
+                            >
+                                {uploading ? "上传中..." : "上传"}
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

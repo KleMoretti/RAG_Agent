@@ -398,7 +398,9 @@ try:
     class ChatResponse(BaseModel):
         response: str
         reasoning_steps: list[dict] | None = None
-        fallback_mode: bool = False  # 是否使用了降级模式（跳过RAG）
+        fallback_mode: bool = False  # 是否使用了降级模式（RAG超时）
+        intent_skip_rag: bool = False  # 是否因意图判断跳过RAG
+        intent_reason: str | None = None  # 意图判断理由
 
     class FileUploadResponse(BaseModel):
         success: bool
@@ -455,6 +457,15 @@ try:
         print(f"✅ Knowledge graph routes mounted at {knowledge_graph_router.prefix}")
     except Exception as e:
         print(f"❌ Failed to mount knowledge graph routes: {e}")
+
+    # Mount market analysis routes
+    try:
+        from src.api.market import router as market_router
+
+        app.include_router(market_router)
+        print(f"✅ Market analysis routes mounted at {market_router.prefix}")
+    except Exception as e:
+        print(f"❌ Failed to mount market analysis routes: {e}")
 
     _app_agents: dict[str, RAGAgent] = {}
 
@@ -663,6 +674,7 @@ try:
         import asyncio
         import time
         from config.settings import get_settings
+        from src.intent_classifier import get_intent_classifier
 
         # 根据 agent_type 和 user_role 获取对应的 Agent
         agent = _get_agent(req.session_id, req.agent_type, req.user_role)
@@ -671,6 +683,26 @@ try:
         # 从配置获取RAG超时时间
         settings = get_settings()
         rag_timeout = settings.rag_timeout_seconds
+
+        # 🚀 智能判断是否需要 RAG
+        classifier = get_intent_classifier()
+        should_use_rag, intent_reason = classifier.should_use_rag(req.message)
+        
+        if not should_use_rag:
+            # 简单问候/闲聊，直接使用 LLM（不检索）
+            print(f"💬 跳过RAG检索: {intent_reason}")
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(None, agent.run, req.message)
+            return ChatResponse(
+                response=result.response,
+                reasoning_steps=_serialize_steps(result.reasoning_steps),
+                fallback_mode=False,
+                intent_skip_rag=True,  # 标记：意图判断跳过RAG
+                intent_reason=intent_reason,
+            )
+        
+        # 需要 RAG 检索
+        print(f"🔍 使用RAG检索: {intent_reason}")
 
         async def rag_with_timeout():
             """执行RAG检索和LLM调用，带超时控制"""
@@ -841,11 +873,13 @@ try:
             result = await loop.run_in_executor(None, agent.run, req.message)
 
         steps = _serialize_steps(result.get("reasoning_steps", []))
-        return {
-            "response": result.get("response", ""),
-            "reasoning_steps": steps,
-            "fallback_mode": fallback_mode,
-        }
+        return ChatResponse(
+            response=result.get("response", ""),
+            reasoning_steps=steps,
+            fallback_mode=fallback_mode,
+            intent_skip_rag=False,  # 使用了 RAG（或降级）
+            intent_reason=intent_reason if not fallback_mode else None,
+        )
 
     @app.post("/api/chat/stream")
     async def chat_stream(req: ChatRequest):
