@@ -209,11 +209,15 @@ class RAGSystemManager:
         # 重建模式：清空现有索引
         if rebuild:
             logging.info("重建模式：清空现有索引")
-            self.store = VectorStore(
+            self.store = VectorStoreFast(
                 dim=self.embedder.dim,
                 index_path=DATA_DIRS['embeddings'] / "index.faiss",
                 metadata_path=DATA_DIRS['embeddings'] / "index.meta.jsonl",
-                normalize=False
+                normalize=False,
+                use_ivf=None,  # 自动判断：<10k用Flat，>=10k自动升级IVF
+                nlist=100,
+                m=8,
+                nbits=8
             )
             self.indexer = Indexer(
                 embedder=self.embedder,

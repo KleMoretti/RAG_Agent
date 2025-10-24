@@ -30,3 +30,9 @@ huggingface-hub
 tokenizers
 transformers
 wordninja  # 英文智能分词工具，用于处理连续无空格的英文字符串
+pandas  # 数据处理和分析（已包含在其他模块中，但显式声明）
+openpyxl # Excel文件读写支持
+
+# 爬虫相关依赖
+selenium  # Mysteel数据爬虫
+webdriver-manager # ChromeDriver自动管理

@@ -646,6 +646,277 @@ tool.execute(query_type="news", category="供应", days=7)
    - 数据点 3-6 → 中等
    - 数据点 < 3 → 低
 
+### Mysteel数据爬虫（自动采集）
+
+#### 功能说明
+系统提供基于 Selenium 的自动化爬虫工具，可从我的钢铁网（Mysteel）自动采集钢材价格数据。
+
+**🎉 v2.1 更新**: 
+- ✅ 统一CLI工具（mysteel_cli.py）
+- ✅ 修复日期输入问题（JavaScript直接填充 + 动态查找日历）
+- ✅ 修复材料定位问题（多种查找方式）
+- ✅ 新增诊断工具（diagnose_mysteel_date_picker.py）
+
+#### 安装依赖
+```bash
+# 安装爬虫相关依赖
+pip install selenium webdriver-manager pandas
+
+# 或更新完整依赖
+pip install -r requirements.txt
+```
+
+**注意**: 需要安装 Google Chrome 浏览器，ChromeDriver 会自动下载管理。
+
+#### 快速开始（推荐使用统一CLI）
+
+**1. 测试连接**
+```bash
+python scripts/mysteel_cli.py test
+```
+
+**2. 爬取单个材料**
+```bash
+# 爬取螺纹钢最近7天数据
+python scripts/mysteel_cli.py crawl --material 螺纹 --days 7 --save-db
+
+# 爬取铁矿石指定日期范围
+python scripts/mysteel_cli.py crawl --material 铁矿石 \
+    --start-date 2025-01-01 --end-date 2025-01-31 --save-db
+```
+
+**3. 批量爬取多种材料（推荐）**
+```bash
+# 批量爬取默认材料（螺纹、铁矿石、焦炭、热卷）
+python scripts/mysteel_cli.py batch --save-db -y
+
+# 批量爬取指定材料
+python scripts/mysteel_cli.py batch \
+    --materials "螺纹,铁矿石,焦炭" \
+    --days 7 \
+    --save-db \
+    -y
+```
+
+**4. 列出支持的材料类型**
+```bash
+python scripts/mysteel_cli.py list
+```
+
+**5. 诊断问题**
+```bash
+python scripts/mysteel_cli.py diagnose
+```
+
+#### 统一CLI命令速查
+
+| 命令 | 说明 | 示例 |
+|------|------|------|
+| `crawl` | 爬取单个材料 | `python scripts/mysteel_cli.py crawl --material 螺纹` |
+| `batch` | 批量爬取多个材料 | `python scripts/mysteel_cli.py batch --save-db -y` |
+| `test` | 测试连接 | `python scripts/mysteel_cli.py test` |
+| `list` | 列出支持的材料 | `python scripts/mysteel_cli.py list` |
+| `diagnose` | 诊断网站结构 | `python scripts/mysteel_cli.py diagnose` |
+
+**快捷脚本**:
+```bash
+# Windows
+scripts\mysteel crawl --material 螺纹 --days 7
+
+# Linux/Mac
+./scripts/mysteel.sh crawl --material 螺纹 --days 7
+```
+
+#### 支持的材料类型
+
+| 材料名称 | 英文ID | 分类 | 说明 |
+|---------|-------|------|-----|
+| 螺纹 | LUOWEN | product | 螺纹钢 |
+| 热卷 | REJUAN | product | 热轧卷板 |
+| 冷卷 | LENGJUAN | product | 冷轧卷板 |
+| 中厚板 | ZHONGHOUBAN | product | 中厚板 |
+| 铁矿石 | TEKUANGSHI | raw_material | 铁矿石 |
+| 焦炭 | JIAOTA | raw_material | 焦炭 |
+
+#### 命令行参数
+
+| 参数 | 说明 | 默认值 | 示例 |
+|-----|------|-------|------|
+| `--material` | 材料类型 | `螺纹` | `--material 铁矿石` |
+| `--start-date` | 开始日期 | 30天前 | `--start-date 2025-01-01` |
+| `--end-date` | 结束日期 | 今天 | `--end-date 2025-01-31` |
+| `--output` | CSV输出路径 | 自动生成 | `--output data.csv` |
+| `--save-db` | 保存到数据库 | False | `--save-db` |
+| `--headless` | 无头模式 | True | `--headless` |
+
+#### 自动化定时任务
+
+**方法1：Python APScheduler（推荐）**
+在 `main.py` 中添加：
+```python
+from apscheduler.schedulers.background import BackgroundScheduler
+from scripts.crawl_mysteel_data import MysteelCrawler
+from datetime import datetime, timedelta
+
+def scheduled_crawl():
+    """每天定时爬取最新数据"""
+    crawler = MysteelCrawler(headless=True)
+    try:
+        materials = ["螺纹", "铁矿石", "焦炭", "热卷"]
+        yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        today = datetime.now().strftime("%Y-%m-%d")
+        
+        for material in materials:
+            df = crawler.crawl_price_data(material, yesterday, today)
+            crawler.save_to_database(df)
+            time.sleep(5)  # 避免频繁请求
+    finally:
+        crawler.close()
+
+# 启动定时任务
+scheduler = BackgroundScheduler()
+scheduler.add_job(scheduled_crawl, 'cron', hour=9, minute=0)  # 每天9点
+scheduler.start()
+```
+
+#### 输出格式
+
+**CSV文件示例**:
+```csv
+material_type,category,price,unit,source,price_date,change_rate,change_amount
+螺纹钢,product,4250.0,元/吨,Mysteel,2025-01-22,2.3,95.0
+螺纹钢,product,4155.0,元/吨,Mysteel,2025-01-21,-0.5,-21.0
+```
+
+**数据库字段**:
+- 自动写入 `market_price_data` 表
+- 字段完全兼容系统标准格式
+- `source` 字段自动标记为 "Mysteel"
+
+#### 故障排查
+
+**快速诊断**：
+```bash
+# 1. 运行连接测试（推荐首先执行）
+python scripts/test_mysteel_connection.py
+
+# 2. 如果测试通过，运行爬虫
+python scripts/crawl_mysteel_data.py --material 螺纹
+
+# 3. 如果仍然失败，查看完整故障排查指南
+```
+
+**常见问题快速解决**：
+
+**问题1：SSL 握手失败 / 网络连接错误**
+```bash
+# 症状
+ERROR: handshake failed; net_error -107/-100
+WinError 10013 访问套接字失败
+
+# 解决方案（按优先级）
+1. 关闭防火墙/VPN 后重试
+2. 检查系统代理设置: netsh winhttp show proxy
+3. 运行测试脚本验证: python scripts/test_mysteel_connection.py
+4. 脚本已自动忽略 SSL 错误和添加重试机制（已优化）
+```
+
+**问题2：ChromeDriver 版本不匹配**
+```bash
+# 症状
+selenium.common.exceptions.SessionNotCreatedException
+
+# 解决
+pip install --upgrade webdriver-manager selenium
+# 或手动下载匹配版本: https://chromedriver.chromium.org/
+```
+
+**问题3：GPU/WebGL 警告**
+```bash
+# 症状（可安全忽略）
+GPU stall due to ReadPixels
+Automatic fallback to software WebGL
+
+# 说明
+这些是性能警告，不影响数据爬取功能
+脚本已自动优化配置以减少警告输出
+```
+
+**问题4：浏览器进程残留**
+```bash
+# 症状
+WinError 10013 或端口占用
+
+# 解决（Windows）
+taskkill /F /IM chrome.exe /T
+taskkill /F /IM chromedriver.exe /T
+
+# 脚本已自动处理（在 close() 方法中）
+```
+
+**问题5：网站结构变化**
+```bash
+# 使用非无头模式调试（可以看到浏览器）
+python scripts/crawl_mysteel_data.py --material 螺纹 --headless false
+
+# 查看自动保存的错误截图
+dir error_screenshot_*.png
+```
+
+**问题6：爬取被封IP**
+- 增加延迟时间（每次请求间隔 ≥ 5秒）
+- 降低爬取频率（每天一次而非每小时）
+- 考虑使用官方 API 接口（更稳定合规）
+
+**问题7：数据为空**
+- 检查日期范围是否合理（不能超过当前日期）
+- 查看日志输出的详细错误信息
+- 手动访问网站验证: https://index.mysteel.com/
+- 运行测试脚本诊断问题
+
+**问题8：日期没有确定 / 日期输入失败（已修复✅）**
+```bash
+# 症状
+ERROR: 日期没有确定
+输入框仍为空 / 日期选择后未填充
+
+# 根本原因
+1. 输入框是只读的（readonly="readonly"），必须通过日历选择器填充
+2. 日历容器路径动态变化（硬编码 div[3] 可能失效）
+3. JavaScript 事件未正确触发（change/input/blur）
+
+# 解决方案（v2.1 已自动修复）
+✅ 优先使用 JavaScript 直接填充（成功率 >95%）
+✅ 动态查找日历容器（自适应网站结构变化）
+✅ 多重备用方案（一种失败自动尝试下一种）
+✅ 详细日志 + 截图（便于调试）
+
+# 诊断工具（如仍然失败）
+python scripts/diagnose_mysteel_date_picker.py  # 查找日历容器路径
+
+# 代码改进（已应用到 crawl_mysteel_data.py）
+- 方法1: JavaScript 直接填充 + 触发所有事件（input/change/blur/keyup/keydown）
+- 方法2: 动态查找日历选择器（遍历 div[1-15]，自动识别年份选择器）
+- 方法3: 多重验证机制（每步操作后检查输入框值）
+- 保存失败截图: date_input_failed_*.png
+
+# 技术细节
+输入框特性: <input id="startWeek" readonly="readonly" class="dataWekStyle">
+- readonly: 禁止键盘输入，只能通过日历或 JavaScript 填充
+- dataWekStyle: 绑定了日期选择器插件（Bootstrap Datepicker 或自定义）
+- 动态日历: 点击后才在 <body> 中插入日历 DOM
+
+# 验证修复
+python scripts/mysteel_cli.py crawl --material 螺纹 --days 7 --headless false
+# 应该看到日志：
+# ✅ JavaScript填充成功：start输入框值 = 2025-01-15
+# ✅ JavaScript填充成功：end输入框值 = 2025-01-22
+```
+
+**完整故障排查指南**：
+详见 [Mysteel CLI 指南 - 故障排查部分](docs/MYSTEEL_CLI_GUIDE.md#故障排查)
+---
+
 ### 外部API接入（可选）
 
 如果有外部市场数据API，可以配置数据源：
