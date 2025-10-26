@@ -467,6 +467,15 @@ try:
     except Exception as e:
         print(f"❌ Failed to mount market analysis routes: {e}")
 
+    # Mount equipment monitoring routes
+    try:
+        from src.api.equipment import router as equipment_router
+
+        app.include_router(equipment_router)
+        print(f"✅ Equipment monitoring routes mounted at {equipment_router.prefix}")
+    except Exception as e:
+        print(f"❌ Failed to mount equipment monitoring routes: {e}")
+
     _app_agents: dict[str, RAGAgent] = {}
 
     def _get_agent(

@@ -503,3 +503,135 @@ class MarketDataSource(Base):
         Index("idx_is_active", "is_active"),
         {"extend_existing": True},
     )
+
+
+class Equipment(Base):
+    """设备信息表"""
+
+    __tablename__ = "equipment"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    equipment_type: Mapped[str] = mapped_column(String(64), nullable=False)  # 设备类型
+    location: Mapped[str] = mapped_column(String(128), nullable=False)  # 位置
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)  # 描述
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)  # 是否激活
+    installation_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # 安装日期
+    last_maintenance: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # 上次维护日期
+    meta_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # 其他元数据
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+    created_by: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("user.id"), nullable=True
+    )
+
+    # 关系
+    sensor_data: Mapped[list["SensorData"]] = relationship("SensorData", back_populates="equipment")
+    fault_predictions: Mapped[list["FaultPrediction"]] = relationship("FaultPrediction", back_populates="equipment")
+
+    # 索引
+    __table_args__ = (
+        Index("idx_equipment_type", "equipment_type"),
+        Index("idx_location", "location"),
+        Index("idx_is_active", "is_active"),
+        {"extend_existing": True},
+    )
+
+
+class SensorData(Base):
+    """传感器数据表"""
+
+    __tablename__ = "sensor_data"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    equipment_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("equipment.id"), nullable=False, index=True
+    )
+    temperature: Mapped[float] = mapped_column(Float, nullable=False)  # 温度
+    pressure: Mapped[float] = mapped_column(Float, nullable=False)  # 压力
+    vibration: Mapped[float] = mapped_column(Float, nullable=False)  # 振动
+    humidity: Mapped[float] = mapped_column(Float, nullable=False)  # 湿度
+    recorded_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)  # 记录时间
+    is_faulty: Mapped[bool | None] = mapped_column(Boolean, nullable=True)  # 是否故障
+    meta_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # 其他元数据
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_by: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("user.id"), nullable=True
+    )
+
+    # 关系
+    equipment: Mapped["Equipment"] = relationship("Equipment", back_populates="sensor_data")
+
+    # 索引
+    __table_args__ = (
+        Index("idx_equipment_recorded", "equipment_id", "recorded_at"),
+        {"extend_existing": True},
+    )
+
+
+class FaultPrediction(Base):
+    """故障预测表"""
+
+    __tablename__ = "fault_prediction"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    equipment_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("equipment.id"), nullable=False, index=True
+    )
+    fault_probability: Mapped[float] = mapped_column(Float, nullable=False)  # 故障概率
+    predicted_fault_type: Mapped[str | None] = mapped_column(String(128), nullable=True)  # 预测故障类型
+    model_version: Mapped[str] = mapped_column(String(32), nullable=False)  # 模型版本
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)  # 置信度
+    predicted_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)  # 预测时间
+    is_confirmed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)  # 是否确认
+    actual_fault_type: Mapped[str | None] = mapped_column(String(128), nullable=True)  # 实际故障类型
+    meta_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # 其他元数据
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_by: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("user.id"), nullable=True
+    )
+
+    # 关系
+    equipment: Mapped["Equipment"] = relationship("Equipment", back_populates="fault_predictions")
+
+    # 索引
+    __table_args__ = (
+        Index("idx_equipment_predicted", "equipment_id", "predicted_at"),
+        Index("idx_model_version", "model_version"),
+        {"extend_existing": True},
+    )
+
+
+class MLModel(Base):
+    """机器学习模型表"""
+
+    __tablename__ = "ml_model"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    model_name: Mapped[str] = mapped_column(String(128), nullable=False)  # 模型名称
+    model_version: Mapped[str] = mapped_column(String(32), nullable=False)  # 模型版本
+    model_type: Mapped[str] = mapped_column(String(32), nullable=False)  # 模型类型
+    model_path: Mapped[str] = mapped_column(String(512), nullable=False)  # 模型路径
+    training_samples: Mapped[int] = mapped_column(Integer, nullable=False)  # 训练样本数
+    test_samples: Mapped[int] = mapped_column(Integer, nullable=False)  # 测试样本数
+    accuracy: Mapped[float] = mapped_column(Float, nullable=False)  # 准确率
+    precision: Mapped[float] = mapped_column(Float, nullable=False)  # 精确率
+    recall: Mapped[float] = mapped_column(Float, nullable=False)  # 召回率
+    f1_score: Mapped[float] = mapped_column(Float, nullable=False)  # F1分数
+    metrics: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # 其他指标
+    feature_importance: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # 特征重要性
+    is_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)  # 是否激活
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)  # 描述
+    trained_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)  # 训练时间
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_by: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("user.id"), nullable=True
+    )
+
+    # 索引
+    __table_args__ = (
+        Index("idx_model_type_version", "model_type", "model_version"),
+        Index("idx_is_active", "is_active"),
+        {"extend_existing": True},
+    )
