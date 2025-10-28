@@ -56,6 +56,7 @@ import {
     roleDisplayNames,
     getRoleIcon,
 } from "@/lib/permissions";
+import { SettingsDialog } from "@/components/shared/SettingsDialog";
 
 // 默认图标映射（用于向后兼容）
 const defaultIcons: Record<string, any> = {
@@ -198,6 +199,9 @@ export function AppSidebar() {
     });
     const [showTooltip, setShowTooltip] = React.useState(false);
     const hoverTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+    // 设置对话框状态
+    const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
 
     // 鼠标悬停事件处理
     const handleAgentMouseEnter = (
@@ -782,7 +786,9 @@ export function AppSidebar() {
                                         </div>
                                     </DropdownMenuLabel>
                                     <DropdownMenuSeparator />
-                                    <DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        onClick={() => setIsSettingsOpen(true)}
+                                    >
                                         <Settings className="mr-2 size-4" />
                                         个人设置
                                     </DropdownMenuItem>
@@ -812,6 +818,12 @@ export function AppSidebar() {
                     position={tooltipPosition}
                 />
             )}
+
+            {/* 个人设置对话框 */}
+            <SettingsDialog
+                open={isSettingsOpen}
+                onOpenChange={setIsSettingsOpen}
+            />
         </>
     );
 }
