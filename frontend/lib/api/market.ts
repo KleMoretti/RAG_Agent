@@ -62,6 +62,7 @@ export interface TrendAnalysis {
 
 export interface MarketSummary {
     latest_prices: Array<{
+        id: number;  // 添加唯一ID，用于React key
         material_type: string;
         category: string;
         price: number;

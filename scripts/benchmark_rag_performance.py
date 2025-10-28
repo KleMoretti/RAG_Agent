@@ -68,48 +68,21 @@ class RAGBenchmark:
         )
         flat_searcher = Searcher(self.embedder, flat_store)
         
-        # 快速索引（如果存在）
-        fast_index_path = Path("data/embeddings/index_fast.faiss")
-        if fast_index_path.exists():
-            print("   - 加载 Fast 索引...")
-            fast_store = VectorStoreFast(
-                dim=384,
-                index_path=fast_index_path,
-                normalize=False,
-            )
-            fast_searcher = SearcherFast(
-                self.embedder,
-                fast_store,
-                enable_cache=True,
-                cache_size=1000,
-            )
-        else:
-            print("   - Fast 索引不存在，创建临时Fast索引...")
-            # 使用原始数据创建临时快速索引
-            import faiss
-            import numpy as np
-            vectors = faiss.rev_swig_ptr(flat_store._index.get_xb(), flat_store.size * 384)
-            vectors = vectors.reshape(flat_store.size, 384).astype(np.float32)
-            metadatas = list(flat_store.iter_metadata())
-            
-            fast_store = VectorStoreFast(
-                dim=384,
-                index_path=Path("data/embeddings/index_temp_fast.faiss"),
-                normalize=False,
-                use_ivf=None,  # 自动判断
-            )
-            
-            # 批量添加
-            batch_size = 1000
-            for i in range(0, len(vectors), batch_size):
-                end = min(i + batch_size, len(vectors))
-                fast_store.add(vectors[i:end], metadatas[i:end])
-            
-            fast_searcher = SearcherFast(
-                self.embedder,
-                fast_store,
-                enable_cache=True,
-            )
+        # 快速索引（直接使用现有的 VectorStoreFast）
+        print("   - 使用现有索引作为 Fast 索引...")
+        fast_store = VectorStoreFast(
+            dim=384,
+            index_path=index_path,
+            metadata_path=meta_path,
+            normalize=False,
+            use_ivf=None,  # 自动判断
+        )
+        fast_searcher = SearcherFast(
+            self.embedder,
+            fast_store,
+            enable_cache=True,
+            cache_size=1000,
+        )
         
         print(f"✅ 索引加载完成")
         print(f"   Flat索引: {flat_store.size} 个向量")

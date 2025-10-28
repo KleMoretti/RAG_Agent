@@ -187,6 +187,41 @@ class BatchUploadResponse(BaseModel):
     message: str
 
 
+# ==================== 辅助函数 ====================
+
+def _calculate_change_rate(
+    db: Session,
+    material_type: str,
+    current_price: float,
+    price_date: datetime,
+) -> tuple[float | None, float | None]:
+    """
+    自动计算涨跌幅和涨跌金额
+    基于上周同期数据（7天前）
+    
+    Returns:
+        (change_rate, change_amount) 或 (None, None) 如果没有历史数据
+    """
+    # 查询7天前的最近一条数据
+    last_week_date = price_date - timedelta(days=7)
+    last_week_price = (
+        db.query(MarketPriceData)
+        .filter(
+            MarketPriceData.material_type == material_type,
+            MarketPriceData.price_date <= last_week_date,
+        )
+        .order_by(MarketPriceData.price_date.desc())
+        .first()
+    )
+    
+    if last_week_price and last_week_price.price > 0:
+        change_amount = current_price - last_week_price.price
+        change_rate = (change_amount / last_week_price.price) * 100
+        return round(change_rate, 2), round(change_amount, 2)
+    
+    return None, None
+
+
 # ==================== 价格数据接口 ====================
 
 @router.get("/prices", response_model=List[PriceDataResponse])
@@ -248,7 +283,23 @@ def create_price(
     """
     创建价格数据
     需要经理或管理员权限
+    自动计算涨跌幅（如果未提供）
     """
+    # 如果没有提供 change_rate，自动计算
+    change_rate = price_data.change_rate
+    change_amount = price_data.change_amount
+    
+    if change_rate is None or change_rate == 0:
+        calc_rate, calc_amount = _calculate_change_rate(
+            db, price_data.material_type, price_data.price, price_data.price_date
+        )
+        if calc_rate is not None:
+            change_rate = calc_rate
+            change_amount = calc_amount
+            logger.info(
+                f"Auto-calculated change_rate for {price_data.material_type}: {change_rate}%"
+            )
+    
     new_price = MarketPriceData(
         material_type=price_data.material_type,
         category=price_data.category,
@@ -257,8 +308,8 @@ def create_price(
         region=price_data.region,
         source=price_data.source,
         price_date=price_data.price_date,
-        change_rate=price_data.change_rate,
-        change_amount=price_data.change_amount,
+        change_rate=change_rate,
+        change_amount=change_amount,
         volume=price_data.volume,
         high_price=price_data.high_price,
         low_price=price_data.low_price,
@@ -344,6 +395,27 @@ async def batch_upload_prices(
             try:
                 # 解析日期
                 price_date = pd.to_datetime(row["price_date"])
+                
+                # 获取原始 change_rate
+                change_rate = (
+                    float(row["change_rate"])
+                    if pd.notna(row.get("change_rate")) and float(row.get("change_rate", 0)) != 0
+                    else None
+                )
+                change_amount = (
+                    float(row["change_amount"])
+                    if pd.notna(row.get("change_amount"))
+                    else None
+                )
+                
+                # 如果没有提供 change_rate，自动计算
+                if change_rate is None:
+                    calc_rate, calc_amount = _calculate_change_rate(
+                        db, str(row["material_type"]), float(row["price"]), price_date
+                    )
+                    if calc_rate is not None:
+                        change_rate = calc_rate
+                        change_amount = calc_amount
 
                 new_price = MarketPriceData(
                     material_type=str(row["material_type"]),
@@ -353,16 +425,8 @@ async def batch_upload_prices(
                     region=str(row["region"]) if pd.notna(row.get("region")) else None,
                     source=str(row["source"]) if pd.notna(row.get("source")) else None,
                     price_date=price_date,
-                    change_rate=(
-                        float(row["change_rate"])
-                        if pd.notna(row.get("change_rate"))
-                        else None
-                    ),
-                    change_amount=(
-                        float(row["change_amount"])
-                        if pd.notna(row.get("change_amount"))
-                        else None
-                    ),
+                    change_rate=change_rate,
+                    change_amount=change_amount,
                     volume=(
                         float(row["volume"]) if pd.notna(row.get("volume")) else None
                     ),
@@ -671,8 +735,48 @@ def get_market_summary(
             (MarketPriceData.material_type == subquery.c.material_type)
             & (MarketPriceData.price_date == subquery.c.max_date),
         )
+        .order_by(MarketPriceData.id.desc())  # 按ID降序，取最新插入的记录
         .all()
     )
+
+    # 去重：每个 material_type 只保留一条记录（最新的）
+    seen_materials = set()
+    unique_prices = []
+    for p in latest_prices:
+        if p.material_type not in seen_materials:
+            seen_materials.add(p.material_type)
+            unique_prices.append(p)
+
+    # 计算"较上周"的涨跌幅
+    prices_with_change = []
+    for p in unique_prices:
+        # 查询上周同期数据（7天前）
+        last_week_date = p.price_date - timedelta(days=7)
+        last_week_price = (
+            db.query(MarketPriceData)
+            .filter(
+                MarketPriceData.material_type == p.material_type,
+                MarketPriceData.price_date <= last_week_date,
+            )
+            .order_by(MarketPriceData.price_date.desc())
+            .first()
+        )
+        
+        # 计算涨跌幅
+        if last_week_price and last_week_price.price > 0:
+            change_rate = ((p.price - last_week_price.price) / last_week_price.price) * 100
+        else:
+            change_rate = p.change_rate  # 如果没有上周数据，使用原有数据
+        
+        prices_with_change.append({
+            "id": p.id,
+            "material_type": p.material_type,
+            "category": p.category,
+            "price": p.price,
+            "unit": p.unit,
+            "change_rate": change_rate,
+            "price_date": p.price_date,
+        })
 
     # 统计信息
     total_materials = (
@@ -688,17 +792,7 @@ def get_market_summary(
     )
 
     return {
-        "latest_prices": [
-            {
-                "material_type": p.material_type,
-                "category": p.category,
-                "price": p.price,
-                "unit": p.unit,
-                "change_rate": p.change_rate,
-                "price_date": p.price_date,
-            }
-            for p in latest_prices
-        ],
+        "latest_prices": prices_with_change,
         "statistics": {
             "total_materials": total_materials,
             "total_news": total_news,

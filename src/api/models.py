@@ -10,6 +10,7 @@ from sqlalchemy import (
     Boolean,
     Text,
     Integer,
+    Float,
     ForeignKey,
     JSON,
     Index,

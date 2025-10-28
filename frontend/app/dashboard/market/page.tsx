@@ -88,15 +88,19 @@ export default function MarketPage() {
     const displayPrices = summary?.latest_prices.slice(0, 4) || [];
     const marketStats = displayPrices.length > 0
         ? displayPrices.map((p) => ({
+              id: p.id,  // 传递唯一ID
               title: p.material_type,
               value: `¥${p.price}${p.unit || "/吨"}`,
-              change: p.change_rate ? `${p.change_rate > 0 ? "+" : ""}${p.change_rate.toFixed(1)}%` : "N/A",
-              trend: p.change_rate && p.change_rate > 0 ? ("up" as const) : ("down" as const),
-              icon: p.change_rate && p.change_rate > 0 ? TrendingUp : TrendingDown,
-              description: "较上周" + (p.change_rate && p.change_rate > 0 ? "上涨" : "下跌"),
+              change: p.change_rate != null ? `${p.change_rate > 0 ? "+" : ""}${p.change_rate.toFixed(1)}%` : "N/A",
+              trend: p.change_rate != null && p.change_rate > 0 ? ("up" as const) : ("down" as const),
+              icon: p.change_rate != null && p.change_rate > 0 ? TrendingUp : TrendingDown,
+              description: p.change_rate != null 
+                  ? (p.change_rate > 0 ? "较上周上涨" : p.change_rate < 0 ? "较上周下跌" : "较上周持平")
+                  : "暂无对比数据",
           }))
         : [
               {
+                  id: 1,  // 模拟数据ID
                   title: "铁矿石价格",
                   value: "¥890/吨",
                   change: "+2.3%",
@@ -105,6 +109,7 @@ export default function MarketPage() {
                   description: "较上周上涨",
               },
               {
+                  id: 2,
                   title: "螺纹钢价格",
                   value: "¥4,250/吨",
                   change: "-1.5%",
@@ -113,6 +118,7 @@ export default function MarketPage() {
                   description: "较上周下跌",
               },
               {
+                  id: 3,
                   title: "焦炭价格",
                   value: "¥2,180/吨",
                   change: "+0.8%",
@@ -121,6 +127,7 @@ export default function MarketPage() {
                   description: "较上周上涨",
               },
               {
+                  id: 4,
                   title: "废钢价格",
                   value: "¥2,650/吨",
                   change: "+3.2%",
@@ -260,10 +267,10 @@ export default function MarketPage() {
 
             {/* 价格统计卡片 */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                {marketStats.map((stat) => {
+                {marketStats.map((stat, index) => {
                     const Icon = stat.icon;
                     return (
-                        <Card key={stat.title}>
+                        <Card key={stat.id || `stat-${index}`}>
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                 <CardTitle className="text-sm font-medium">
                                     {stat.title}

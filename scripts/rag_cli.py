@@ -374,6 +374,7 @@ class RAGSystemManager:
         """获取系统信息"""
         info = {
             'vector_store_size': self.store.size,
+            'index_type': self.store.index_type,  # 🆕 添加索引类型
             'embedding_dimension': self.embedder.dim,
             'embedding_model': self.embedding_model,
             'chunk_size': self.chunk_size,
@@ -400,6 +401,7 @@ class RAGSystemManager:
         print("\n📊 RAG 系统信息")
         print("=" * 60)
         print(f"向量库大小: {info['vector_store_size']} 个块")
+        print(f"📇 索引类型: {info['index_type']}")  # 🆕 显示索引类型
         print(f"嵌入模型: {info['embedding_model']}")
         print(f"嵌入维度: {info['embedding_dimension']}")
         print(f"分块大小: {info['chunk_size']}")

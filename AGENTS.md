@@ -429,6 +429,73 @@ material_type,category,price,unit,region,source,price_date,change_rate,change_am
 - 必填列：`material_type`, `category`, `price`, `price_date`
 - 可选列：`unit`, `region`, `source`, `change_rate`, `change_amount`, `volume`, `high_price`, `low_price`
 
+#### 2.1. 自动计算涨跌幅（✨ 新功能）
+
+**功能说明**：
+系统会自动计算价格数据的涨跌幅（基于上周同期数据），无需手动提供 `change_rate` 字段。
+
+**工作原理**：
+1. **上传数据时**：如果 `change_rate` 为空或为 0，系统自动查询 7 天前的价格数据并计算涨跌幅
+2. **计算公式**：
+   ```
+   change_rate = ((当前价格 - 上周价格) / 上周价格) × 100
+   change_amount = 当前价格 - 上周价格
+   ```
+3. **前端显示**：
+   - `change_rate > 0` → 显示 `+X.X%`（红色上涨）
+   - `change_rate < 0` → 显示 `-X.X%`（绿色下跌）
+   - `change_rate = 0` → 显示 `0.0%`（持平）
+   - `change_rate = null` → 显示 `N/A`（无对比数据）
+
+**简化的CSV格式**（无需提供 change_rate）：
+```csv
+material_type,category,price,unit,source,price_date
+铁矿石,raw_material,870,元/吨,Mysteel,2025-10-18
+铁矿石,raw_material,890,元/吨,Mysteel,2025-10-25
+```
+上传后，系统自动计算：`change_rate = (890 - 870) / 870 × 100 = 2.3%`
+
+**重新计算现有数据**：
+如果已有数据的 `change_rate = 0` 或 `null`，可以运行脚本重新计算：
+
+```bash
+# 查看数据统计
+python scripts/recalculate_market_change_rate.py --stats
+
+# 输出示例：
+# 📊 市场数据统计
+# ============================================================
+# 总记录数: 156
+# change_rate 为 0 或 null: 45 (28.8%)
+# 按材料类型统计:
+#   - 螺纹钢: 52 条
+#   - 铁矿石: 48 条
+#   - 焦炭: 34 条
+#   - 废钢: 22 条
+
+# 重新计算 change_rate 为 0 或 null 的数据
+python scripts/recalculate_market_change_rate.py
+
+# 输出示例：
+# 🔄 重新计算 change_rate 为 0 或 null 的数据...
+# 📊 找到 45 条需要重新计算的记录
+# ✅ [螺纹钢] 2025-10-25 | 价格: ¥127.78 | 涨跌幅: 0.0% → 2.3%
+# ✅ [铁矿石] 2025-10-25 | 价格: ¥890.0 | 涨跌幅: 0.0% → 1.8%
+# ⏭️  [焦炭] 2025-10-18 | 价格: ¥2180.0 | 跳过（无历史数据）
+# ============================================================
+# ✅ 成功更新 42 条记录
+# ⏭️  跳过 3 条记录（无历史数据）
+
+# 强制重新计算所有数据（不推荐，除非数据有误）
+python scripts/recalculate_market_change_rate.py --force
+```
+
+**注意事项**：
+- ✅ 上传数据时按日期排序（从旧到新），确保计算准确
+- ✅ 至少上传 7 天以上的连续数据，否则早期数据无法计算涨跌幅
+- ✅ 如果手动提供了正确的 `change_rate`，系统不会覆盖
+- ⚠️  脚本只计算 7 天前的数据作为基准，如果间隔超过 7 天，可能找不到对比数据
+
 #### 3. 查看市场数据
 
 **前端页面**：
@@ -651,11 +718,22 @@ tool.execute(query_type="news", category="供应", days=7)
 #### 功能说明
 系统提供基于 Selenium 的自动化爬虫工具，可从我的钢铁网（Mysteel）自动采集钢材价格数据。
 
-**🎉 v2.1 更新**: 
-- ✅ 统一CLI工具（mysteel_cli.py）
-- ✅ 修复日期输入问题（JavaScript直接填充 + 动态查找日历）
-- ✅ 修复材料定位问题（多种查找方式）
-- ✅ 新增诊断工具（diagnose_mysteel_date_picker.py）
+**🎉 最新更新**: 
+- ✅ **v2.2 (2025-10-28)**: 修复数据日期一致问题，支持按周循环爬取历史数据
+- ✅ **v2.1**: 统一CLI工具（mysteel_cli.py）
+- ✅ **v2.1**: 修复日期输入问题（JavaScript直接填充 + 动态查找日历）
+- ✅ **v2.1**: 修复材料定位问题（多种查找方式）
+- ✅ **v2.1**: 新增诊断工具（diagnose_mysteel_date_picker.py）
+
+**🔧 v2.2 重要修复**：
+- **问题**：之前所有爬取的数据日期都相同（都是"当前周的周一"）
+- **原因**：代码只提取一次数据，并将所有数据标记为同一个日期
+- **解决方案**：
+  - 将日期范围按周拆分（如 2025-01-01 到 2025-01-31 拆分为 4-5 周）
+  - 每周单独查询一次网站
+  - 为每周的数据标记正确的日期（该周的周一）
+  - 最后合并所有周的数据
+- **效果**：现在爬取21天数据，会得到3周的数据，每周的日期都不同
 
 #### 安装依赖
 ```bash
@@ -677,8 +755,8 @@ python scripts/mysteel_cli.py test
 
 **2. 爬取单个材料**
 ```bash
-# 爬取螺纹钢最近7天数据
-python scripts/mysteel_cli.py crawl --material 螺纹 --days 7 --save-db
+# 爬取螺纹钢最近21天数据（默认，确保能计算涨跌幅）
+python scripts/mysteel_cli.py crawl --material 螺纹 --days 21 --save-db
 
 # 爬取铁矿石指定日期范围
 python scripts/mysteel_cli.py crawl --material 铁矿石 \
@@ -687,16 +765,21 @@ python scripts/mysteel_cli.py crawl --material 铁矿石 \
 
 **3. 批量爬取多种材料（推荐）**
 ```bash
-# 批量爬取默认材料（螺纹、铁矿石、焦炭、热卷）
+# 批量爬取默认材料（螺纹、铁矿石、焦炭、热卷），默认21天
 python scripts/mysteel_cli.py batch --save-db -y
 
 # 批量爬取指定材料
 python scripts/mysteel_cli.py batch \
     --materials "螺纹,铁矿石,焦炭" \
-    --days 7 \
+    --days 21 \
     --save-db \
     -y
 ```
+
+**📌 为什么默认 21 天？**
+- 涨跌幅计算需要对比 7 天前的数据
+- 即使在周一爬取，也能保证有足够的历史数据（至少两周）
+- 21 天 = 3 周，确保数据完整性
 
 **4. 列出支持的材料类型**
 ```bash
@@ -721,10 +804,10 @@ python scripts/mysteel_cli.py diagnose
 **快捷脚本**:
 ```bash
 # Windows
-scripts\mysteel crawl --material 螺纹 --days 7
+scripts\mysteel crawl --material 螺纹 --days 21
 
 # Linux/Mac
-./scripts/mysteel.sh crawl --material 螺纹 --days 7
+./scripts/mysteel.sh crawl --material 螺纹 --days 21
 ```
 
 #### 支持的材料类型
@@ -743,8 +826,9 @@ scripts\mysteel crawl --material 螺纹 --days 7
 | 参数 | 说明 | 默认值 | 示例 |
 |-----|------|-------|------|
 | `--material` | 材料类型 | `螺纹` | `--material 铁矿石` |
-| `--start-date` | 开始日期 | 30天前 | `--start-date 2025-01-01` |
-| `--end-date` | 结束日期 | 今天 | `--end-date 2025-01-31` |
+| `--days` | 爬取天数 | `21` | `--days 21` |
+| `--start-date` | 开始日期 | 21天前 | `--start-date 2025-01-01` |
+| `--end-date` | 结束日期 | 昨天 | `--end-date 2025-01-31` |
 | `--output` | CSV输出路径 | 自动生成 | `--output data.csv` |
 | `--save-db` | 保存到数据库 | False | `--save-db` |
 | `--headless` | 无头模式 | True | `--headless` |
@@ -989,6 +1073,515 @@ python scripts/mysteel_cli.py crawl --material 螺纹 --days 7 --headless false
 6. ✅ **备份数据**：定期导出数据库备份
 7. ❌ 避免重复上传相同日期的数据（会导致冗余）
 8. ❌ 避免价格异常值（如负数、超大值）
+
+---
+
+## Steel Equipment Monitoring System (钢铁设备监控系统)
+
+### 功能说明
+钢铁设备监控系统提供设备传感器数据管理、故障预测和预警功能。基于机器学习模型（随机森林）实现智能故障检测，支持实时监控和历史数据分析。
+
+### 核心特性
+1. **传感器数据管理**: 温度、压力、振动、湿度等传感器数据的采集和存储
+2. **智能故障预测**: 基于 ML 模型预测设备故障概率和故障类型
+3. **批量预测**: 支持多设备并行故障诊断
+4. **设备管理**: 设备信息管理（类型、位置、状态、维护记录）
+5. **统计分析**: 设备健康度、故障率、传感器数据趋势
+6. **模型训练**: 自定义模型训练和版本管理
+
+### 快速开始
+
+#### 1. 数据库准备（已在 `models.py` 中定义）
+系统自动创建以下数据表：
+- `equipment` - 设备信息表
+- `sensor_data` - 传感器数据表
+- `fault_prediction` - 故障预测记录表
+- `ml_model` - ML 模型版本管理表
+
+#### 2. 生成测试数据
+```bash
+# 生成1000条测试数据（包含15%故障样本）
+python scripts/generate_test_data.py --n-samples 1000 --output equipment_fault_data.csv
+
+# 输出示例：
+# ✅ 已生成测试数据: equipment_fault_data.csv
+#    样本数: 1000
+#    故障样本: 153 (15.3%)
+#    设备类型: {'Turbine': 339, 'Compressor': 334, 'Pump': 327}
+```
+
+**数据格式**：
+```csv
+temperature,pressure,vibration,humidity,equipment_type,location,faulty
+70.5,40.2,1.45,50.3,Turbine,Atlanta,0
+89.3,54.8,3.52,48.9,Turbine,Chicago,1
+```
+
+#### 3. 训练故障检测模型
+```bash
+# 训练模型（使用默认参数）
+python scripts/train_fault_detector.py --data equipment_fault_data.csv
+
+# 自定义参数训练
+python scripts/train_fault_detector.py \
+    --data equipment_fault_data.csv \
+    --n-estimators 200 \
+    --max-depth 15 \
+    --test-size 0.25
+```
+
+**训练输出示例**：
+```
+🚀 开始训练设备故障检测模型
+============================================================
+📖 加载训练数据: equipment_fault_data.csv
+✅ 加载完成: 1000 条记录
+
+📋 设备类型分布:
+   Turbine: 339 个样本, 故障: 52 (15.3%)
+   Compressor: 334 个样本, 故障: 51 (15.3%)
+   Pump: 327 个样本, 故障: 50 (15.3%)
+
+📊 特征维度: (1000, 6)
+📊 故障样本: 153 (15.3%)
+
+🔄 开始训练随机森林模型...
+   参数: n_estimators=100, max_depth=10
+
+📈 评估模型性能...
+
+📊 模型性能:
+   准确率: 0.9650
+   精确率: 0.8929
+   召回率: 0.9032
+   F1分数: 0.8980
+
+🔍 特征重要性:
+   temperature: 0.3245
+   vibration: 0.2987
+   pressure: 0.2134
+   humidity: 0.0821
+   equipment_type: 0.0513
+   location: 0.0300
+
+🔄 交叉验证...
+   CV F1均值: 0.8912 (±0.0234)
+
+💾 模型已保存: data/ml_models/fault_detector_20251026_133808.pkl
+
+============================================================
+✅ 训练完成!
+============================================================
+📊 模型版本: 1.0.0
+📊 训练样本: 800
+📊 测试样本: 200
+📊 准确率: 0.9650
+📊 F1分数: 0.8980
+📂 模型路径: data/ml_models/fault_detector_20251026_133808.pkl
+```
+
+#### 4. 使用 API 进行故障预测
+
+**方式一：单次预测**
+```bash
+curl -X POST http://localhost:8000/api/equipment/predict \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '{
+    "temperature": 89.5,
+    "pressure": 55.2,
+    "vibration": 3.45,
+    "humidity": 48.7,
+    "equipment_type": "Turbine",
+    "location": "Chicago"
+  }'
+```
+
+**响应示例**：
+```json
+{
+  "fault_probability": 0.8723,
+  "is_faulty": true,
+  "confidence": 0.8723,
+  "model_version": "1.0.0"
+}
+```
+
+**方式二：批量预测**
+```bash
+curl -X POST http://localhost:8000/api/equipment/predict-batch \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '[
+    {"temperature": 70.5, "pressure": 40.2, "vibration": 1.45, "humidity": 50.3},
+    {"temperature": 89.3, "pressure": 54.8, "vibration": 3.52, "humidity": 48.9}
+  ]'
+```
+
+#### 5. 管理传感器数据
+
+**创建传感器数据**：
+```bash
+curl -X POST http://localhost:8000/api/equipment/sensor-data \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '{
+    "equipment_id": 1,
+    "temperature": 70.5,
+    "pressure": 40.2,
+    "vibration": 1.45,
+    "humidity": 50.3,
+    "is_faulty": false
+  }'
+```
+
+**查询传感器数据**：
+```bash
+# 查询指定设备的传感器数据
+curl "http://localhost:8000/api/equipment/sensor-data?equipment_id=1&limit=50" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+
+# 查询所有设备的传感器数据
+curl "http://localhost:8000/api/equipment/sensor-data?limit=100" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+#### 6. 查看设备统计信息
+
+```bash
+curl http://localhost:8000/api/equipment/stats \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**响应示例**：
+```json
+{
+  "total_equipment": 15,
+  "active_equipment": 12,
+  "total_sensor_data": 5432,
+  "faulty_count": 823,
+  "faulty_rate": 15.15
+}
+```
+
+### 数据库表结构
+
+#### equipment (设备信息表)
+| 字段 | 类型 | 说明 | 必填 |
+|-----|------|------|-----|
+| id | BIGINT | 主键 | - |
+| equipment_type | VARCHAR(64) | 设备类型（Turbine/Compressor/Pump等） | ✅ |
+| location | VARCHAR(64) | 位置 | ✅ |
+| description | TEXT | 描述 | - |
+| is_active | BOOLEAN | 是否激活（默认True） | - |
+| installation_date | DATETIME | 安装日期 | - |
+| last_maintenance | DATETIME | 最后维护时间 | - |
+| created_at | DATETIME | 创建时间 | - |
+| updated_at | DATETIME | 更新时间 | - |
+
+**索引**：
+- `idx_equipment_type`: (equipment_type)
+- `idx_location`: (location)
+- `idx_is_active`: (is_active)
+
+#### sensor_data (传感器数据表)
+| 字段 | 类型 | 说明 | 必填 |
+|-----|------|------|-----|
+| id | BIGINT | 主键 | - |
+| equipment_id | BIGINT | 设备ID（外键） | ✅ |
+| temperature | FLOAT | 温度（℃） | ✅ |
+| pressure | FLOAT | 压力（psi） | ✅ |
+| vibration | FLOAT | 振动（mm/s） | ✅ |
+| humidity | FLOAT | 湿度（%） | ✅ |
+| recorded_at | DATETIME | 记录时间 | ✅ |
+| is_faulty | BOOLEAN | 是否故障 | - |
+| created_at | DATETIME | 创建时间 | - |
+
+**索引**：
+- `idx_equipment_recorded`: (equipment_id, recorded_at DESC)
+- `idx_recorded_at`: (recorded_at DESC)
+- `idx_is_faulty`: (is_faulty)
+
+#### fault_prediction (故障预测记录表)
+| 字段 | 类型 | 说明 | 必填 |
+|-----|------|------|-----|
+| id | BIGINT | 主键 | - |
+| equipment_id | BIGINT | 设备ID（外键） | ✅ |
+| fault_probability | FLOAT | 故障概率（0-1） | ✅ |
+| predicted_fault_type | VARCHAR(64) | 预测故障类型 | - |
+| model_version | VARCHAR(32) | 模型版本 | ✅ |
+| confidence | FLOAT | 置信度（0-1） | - |
+| predicted_at | DATETIME | 预测时间 | ✅ |
+| is_confirmed | BOOLEAN | 是否确认（默认False） | - |
+| created_at | DATETIME | 创建时间 | - |
+
+**索引**：
+- `idx_equipment_predicted`: (equipment_id, predicted_at DESC)
+- `idx_predicted_at`: (predicted_at DESC)
+
+#### ml_model (ML 模型版本表)
+| 字段 | 类型 | 说明 | 必填 |
+|-----|------|------|-----|
+| id | BIGINT | 主键 | - |
+| model_name | VARCHAR(128) | 模型名称 | ✅ |
+| model_version | VARCHAR(32) | 模型版本 | ✅ |
+| model_type | VARCHAR(64) | 模型类型（RandomForest/XGBoost等） | ✅ |
+| model_path | VARCHAR(256) | 模型文件路径 | ✅ |
+| metrics | JSON | 模型性能指标 | - |
+| hyperparameters | JSON | 超参数 | - |
+| training_samples | INTEGER | 训练样本数 | - |
+| is_active | BOOLEAN | 是否激活（默认False） | - |
+| trained_at | DATETIME | 训练时间 | ✅ |
+| created_at | DATETIME | 创建时间 | - |
+| created_by | BIGINT | 创建者ID | - |
+
+**索引**：
+- `idx_model_name_version`: (model_name, model_version)
+- `idx_is_active`: (is_active)
+
+### API 端点列表
+
+#### 传感器数据 API
+- `POST /api/equipment/sensor-data` - 创建传感器数据
+  - 权限：所有登录用户
+  - 请求体：`SensorDataCreate`
+  - 返回：`SensorDataResponse`
+
+- `GET /api/equipment/sensor-data` - 获取传感器数据列表
+  - 参数：`equipment_id` (可选), `limit`, `offset`
+  - 返回：`List[SensorDataResponse]`
+
+#### 故障预测 API
+- `POST /api/equipment/predict` - 预测设备故障
+  - 权限：所有登录用户
+  - 请求体：`PredictRequest`
+  - 返回：`PredictResponse`
+
+- `POST /api/equipment/predict-batch` - 批量预测设备故障
+  - 权限：所有登录用户
+  - 请求体：`List[PredictRequest]`
+  - 返回：`List[Dict[str, Any]]`
+
+#### 设备管理 API
+- `GET /api/equipment/equipment` - 获取设备列表
+  - 参数：`equipment_type`, `location`, `is_active`
+  - 返回：`List[EquipmentResponse]`
+
+#### 故障预测记录 API
+- `GET /api/equipment/fault-predictions` - 获取故障预测记录
+  - 参数：`equipment_id` (可选), `limit`, `offset`
+  - 返回：`List[FaultPredictionResponse]`
+
+#### 统计信息 API
+- `GET /api/equipment/stats` - 获取设备统计信息
+  - 返回：`Dict[str, Any]`
+
+### ML 模型技术细节
+
+#### 1. 特征工程
+**传感器特征**（连续型）：
+- `temperature` - 温度（℃）
+- `pressure` - 压力（psi）
+- `vibration` - 振动（mm/s）
+- `humidity` - 湿度（%）
+
+**分类特征**（离散型）：
+- `equipment_type` - 设备类型（Turbine/Compressor/Pump）
+- `location` - 位置（Atlanta/Chicago/San Francisco/New York/Houston）
+
+#### 2. 模型架构
+- **算法**: Random Forest Classifier
+- **默认参数**:
+  - `n_estimators=100` - 树的数量
+  - `max_depth=10` - 最大深度
+  - `class_weight='balanced'` - 平衡类别权重
+  - `n_jobs=-1` - 并行训练
+  - `random_state=42` - 随机种子
+
+#### 3. 模型评估指标
+- **准确率** (Accuracy) - 整体预测准确度
+- **精确率** (Precision) - 预测为故障的样本中真实故障的比例
+- **召回率** (Recall) - 真实故障的样本中被预测出的比例
+- **F1 分数** (F1 Score) - 精确率和召回率的调和平均
+- **交叉验证** (Cross-Validation) - 5折交叉验证评估泛化能力
+
+#### 4. 特征重要性示例
+```
+特征              重要性
+temperature      0.3245  ← 最重要
+vibration        0.2987
+pressure         0.2134
+humidity         0.0821
+equipment_type   0.0513
+location         0.0300
+```
+
+#### 5. 模型版本管理
+- 模型文件: `data/ml_models/fault_detector_{timestamp}.pkl`
+- 元数据文件: `data/ml_models/fault_detector_{timestamp}.pkl.metadata.json`
+- 自动加载最新版本模型
+- 支持多版本并存和回滚
+
+### 权限控制
+
+| 操作 | ADMIN | MANAGER | TECHNICIAN |
+|-----|-------|---------|------------|
+| 查看传感器数据 | ✅ | ✅ | ✅ |
+| 创建传感器数据 | ✅ | ✅ | ✅ |
+| 查看故障预测 | ✅ | ✅ | ✅ |
+| 执行故障预测 | ✅ | ✅ | ✅ |
+| 批量预测 | ✅ | ✅ | ✅ |
+| 查看设备信息 | ✅ | ✅ | ✅ |
+| 训练模型 | ✅ | ✅ | ❌ |
+| 管理设备 | ✅ | ✅ | ❌ |
+
+### 使用场景
+
+#### 场景 1：实时监控预警
+```python
+# 定时采集传感器数据并预测
+import schedule
+import time
+
+def monitor_equipment(equipment_id):
+    # 1. 采集传感器数据
+    sensor_data = read_sensors(equipment_id)
+    
+    # 2. 调用预测 API
+    response = requests.post(
+        "http://localhost:8000/api/equipment/predict",
+        json=sensor_data,
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    
+    # 3. 判断预警
+    result = response.json()
+    if result['fault_probability'] > 0.7:
+        send_alert(f"设备 {equipment_id} 故障概率: {result['fault_probability']:.2%}")
+
+# 每5分钟执行一次
+schedule.every(5).minutes.do(monitor_equipment, equipment_id=1)
+
+while True:
+    schedule.run_pending()
+    time.sleep(1)
+```
+
+#### 场景 2：批量健康度评估
+```python
+# 评估所有设备的健康度
+equipment_list = requests.get(
+    "http://localhost:8000/api/equipment/equipment",
+    headers={"Authorization": f"Bearer {token}"}
+).json()
+
+sensor_data_list = []
+for equipment in equipment_list:
+    latest_data = get_latest_sensor_data(equipment['id'])
+    sensor_data_list.append(latest_data)
+
+# 批量预测
+predictions = requests.post(
+    "http://localhost:8000/api/equipment/predict-batch",
+    json=sensor_data_list,
+    headers={"Authorization": f"Bearer {token}"}
+).json()
+
+# 生成健康度报告
+for equipment, prediction in zip(equipment_list, predictions):
+    print(f"{equipment['equipment_type']} ({equipment['location']}): "
+          f"故障概率 {prediction['fault_probability']:.2%}")
+```
+
+#### 场景 3：模型重新训练
+```bash
+# 1. 导出最近3个月的传感器数据
+python scripts/export_sensor_data.py --start-date 2025-08-01 --end-date 2025-10-31 --output training_data.csv
+
+# 2. 训练新模型
+python scripts/train_fault_detector.py --data training_data.csv --n-estimators 200 --max-depth 15
+
+# 3. 评估新模型性能
+# 如果性能提升，新模型会自动成为活跃模型
+
+# 4. 重启后端服务加载新模型
+python manage.py start backend
+```
+
+### 故障排查
+
+#### 问题：模型未加载
+**症状**：
+```json
+{
+  "detail": "模型未加载，请先调用 load_model() 或 train()"
+}
+```
+
+**解决方案**：
+1. 训练新模型：
+   ```bash
+   python scripts/train_fault_detector.py --data equipment_fault_data.csv
+   ```
+2. 重启后端服务：
+   ```bash
+   python manage.py start backend
+   ```
+3. 检查模型文件是否存在：
+   ```bash
+   ls data/ml_models/
+   ```
+
+#### 问题：预测准确率低
+**解决方案**：
+1. 增加训练样本数量
+2. 调整模型超参数：
+   ```bash
+   python scripts/train_fault_detector.py \
+       --data training_data.csv \
+       --n-estimators 200 \
+       --max-depth 15
+   ```
+3. 检查数据质量（是否有异常值、缺失值）
+4. 增加特征工程（如时间窗口统计特征）
+
+#### 问题：特定设备类型预测不准
+**解决方案**：
+1. 检查该设备类型的训练样本数量
+2. 增加该设备类型的数据采集
+3. 考虑为不同设备类型训练独立模型
+
+#### 问题：传感器数据无法创建
+**解决方案**：
+1. 确认设备存在：
+   ```bash
+   curl "http://localhost:8000/api/equipment/equipment" -H "Authorization: Bearer $TOKEN"
+   ```
+2. 检查传感器数据格式
+3. 验证数据类型（temperature/pressure/vibration/humidity 必须为 float）
+
+### 最佳实践
+
+1. ✅ **定期重新训练**: 每月或每季度重新训练模型，使用最新数据
+2. ✅ **数据清洗**: 过滤异常值和缺失值
+3. ✅ **特征归一化**: 对传感器数据进行标准化（如果需要）
+4. ✅ **交叉验证**: 使用交叉验证评估模型泛化能力
+5. ✅ **阈值调整**: 根据实际业务需求调整故障判断阈值（默认 0.5）
+6. ✅ **监控日志**: 记录预测结果和实际故障情况，用于模型改进
+7. ✅ **多模型对比**: 尝试不同算法（XGBoost、LightGBM、神经网络）
+8. ❌ 避免过拟合：控制模型复杂度（max_depth 不宜过大）
+9. ❌ 避免数据泄露：训练/测试集严格分离
+
+### 未来扩展方向
+
+1. 🔮 **多分类故障诊断**: 不仅判断是否故障，还判断故障类型（过热/过压/振动异常/磨损等）
+2. 🔮 **时间序列预测**: 基于历史趋势预测未来故障时间
+3. 🔮 **异常检测**: 使用无监督学习检测未知故障模式
+4. 🔮 **深度学习**: 使用 LSTM/Transformer 捕捉时序依赖
+5. 🔮 **联邦学习**: 跨工厂协同训练，保护数据隐私
+6. 🔮 **可解释性**: 使用 SHAP/LIME 解释预测结果
+7. 🔮 **在线学习**: 模型持续学习新数据，自动更新
+8. 🔮 **多模态融合**: 结合音频、振动频谱、红外图像等多模态数据
 
 ---
 

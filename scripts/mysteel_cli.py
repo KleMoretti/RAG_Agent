@@ -273,7 +273,7 @@ def cmd_test(args):
         print("=" * 70)
         print()
         print("💡 下一步:")
-        print("   python scripts/mysteel_cli.py crawl --material 螺纹 --days 3")
+        print("   python scripts/mysteel_cli.py crawl --material 螺纹 --days 21")
         
         if not args.show_browser:
             input("\n按回车键关闭...")
@@ -395,8 +395,8 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
-  # 爬取螺纹钢最近7天数据
-  python scripts/mysteel_cli.py crawl --material 螺纹 --days 7
+  # 爬取螺纹钢最近21天数据（默认）
+  python scripts/mysteel_cli.py crawl --material 螺纹 --days 21
   
   # 爬取铁矿石指定日期范围并保存到数据库
   python scripts/mysteel_cli.py crawl --material 铁矿石 \\
@@ -426,8 +426,8 @@ def main():
                             help='开始日期 (YYYY-MM-DD)')
     crawl_parser.add_argument('--end-date', type=str,
                             help='结束日期 (YYYY-MM-DD)')
-    crawl_parser.add_argument('--days', type=int, default=30,
-                            help='爬取最近N天的数据（默认: 30）')
+    crawl_parser.add_argument('--days', type=int, default=21,
+                            help='爬取最近N天的数据（默认: 21天，确保有足够数据计算涨跌幅）')
     crawl_parser.add_argument('--output', type=str,
                             help='输出CSV文件路径')
     crawl_parser.add_argument('--save-db', action='store_true',
@@ -447,8 +447,8 @@ def main():
                             help='开始日期 (YYYY-MM-DD)')
     batch_parser.add_argument('--end-date', type=str,
                             help='结束日期 (YYYY-MM-DD)')
-    batch_parser.add_argument('--days', type=int, default=7,
-                            help='爬取最近N天的数据（默认: 7）')
+    batch_parser.add_argument('--days', type=int, default=21,
+                            help='爬取最近N天的数据（默认: 21天，确保有足够数据计算涨跌幅）')
     batch_parser.add_argument('--output-dir', type=str,
                             help='输出目录（每个材料单独保存CSV）')
     batch_parser.add_argument('--save-db', action='store_true',

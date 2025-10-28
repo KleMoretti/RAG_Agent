@@ -101,6 +101,45 @@ class MysteelCrawler:
                 aligned_date = date_obj + timedelta(days=days_to_sunday)
         
         return aligned_date.strftime("%Y-%m-%d")
+    
+    def _split_date_range_by_week(self, start_date: str, end_date: str) -> list[tuple[str, str]]:
+        """
+        将日期范围按周拆分（每周：周一-周日）
+        
+        Args:
+            start_date: 开始日期（YYYY-MM-DD）
+            end_date: 结束日期（YYYY-MM-DD）
+        
+        Returns:
+            [(week1_start, week1_end), (week2_start, week2_end), ...]
+        """
+        # 对齐到周边界
+        aligned_start = self._align_to_week_boundary(start_date, is_start=True)
+        aligned_end = self._align_to_week_boundary(end_date, is_start=False)
+        
+        start_obj = datetime.strptime(aligned_start, "%Y-%m-%d")
+        end_obj = datetime.strptime(aligned_end, "%Y-%m-%d")
+        
+        week_ranges = []
+        current_start = start_obj
+        
+        while current_start <= end_obj:
+            # 当前周的周日
+            current_end = current_start + timedelta(days=6)
+            
+            # 如果超过结束日期，使用结束日期
+            if current_end > end_obj:
+                current_end = end_obj
+            
+            week_ranges.append((
+                current_start.strftime("%Y-%m-%d"),
+                current_end.strftime("%Y-%m-%d")
+            ))
+            
+            # 移动到下一周的周一
+            current_start = current_end + timedelta(days=1)
+        
+        return week_ranges
         
     def _init_driver(self, headless: bool, driver_path: str | None):
         """初始化浏览器驱动"""
@@ -166,7 +205,7 @@ class MysteelCrawler:
         max_retries: int = 3
     ) -> pd.DataFrame:
         """
-        爬取价格数据
+        爬取价格数据（按周循环爬取）
         
         Args:
             material_key: 材料类型（如"螺纹"、"铁矿石"）
@@ -182,6 +221,12 @@ class MysteelCrawler:
         
         material_info = MATERIAL_MAPPING[material_key]
         logger.info(f"🔍 开始爬取 {material_info['name']} 数据 ({start_date} ~ {end_date})")
+        
+        # 🆕 按周拆分日期范围
+        week_ranges = self._split_date_range_by_week(start_date, end_date)
+        logger.info(f"📅 日期范围已拆分为 {len(week_ranges)} 周")
+        
+        all_data = []  # 存储所有周的数据
         
         for attempt in range(max_retries):
             try:
@@ -199,29 +244,39 @@ class MysteelCrawler:
                     raise Exception(f"网站连接失败（已重试{max_retries}次）: {e}")
         
         try:
-            
             # 2. 点击右侧展开按钮
             self._click_expand_button()
             
             # 3. 选择材料类型
             self._select_material(material_info["id"], material_info["name"])
             
-            # 4. 切换到"按日查询"
+            # 4. 切换到"按周查询"
             self._switch_to_weekly_query()
             
-            # 5. 输入日期范围
-            self._input_date_range(start_date, end_date)
+            # 🆕 5. 按周循环爬取
+            for idx, (week_start, week_end) in enumerate(week_ranges, 1):
+                logger.info(f"📅 [{idx}/{len(week_ranges)}] 爬取第 {idx} 周: {week_start} ~ {week_end}")
+                
+                # 5.1 输入日期范围
+                self._input_date_range(week_start, week_end)
+                
+                # 5.2 等待数据加载
+                time.sleep(5)
+                
+                # 5.3 提取数据（传入当前周的日期）
+                week_data = self._extract_data(week_start_date=week_start)
+                all_data.extend(week_data)
+                
+                logger.info(f"✅ 第 {idx} 周提取了 {len(week_data)} 条数据")
+                
+                # 避免频繁请求
+                if idx < len(week_ranges):
+                    time.sleep(2)
             
-            # 6. 等待数据加载
-            time.sleep(5)
+            # 6. 数据处理
+            df = self._process_data(all_data, material_info)
             
-            # 7. 提取数据
-            data = self._extract_data()
-            
-            # 8. 数据处理
-            df = self._process_data(data, material_info)
-            
-            logger.info(f"✅ 成功爬取 {len(df)} 条数据")
+            logger.info(f"✅ 总计成功爬取 {len(df)} 条数据（{len(week_ranges)} 周）")
             return df
             
         except Exception as e:
@@ -569,8 +624,13 @@ class MysteelCrawler:
             logger.error(f"❌ 输入日期失败 ({date_type}): {e}")
             raise
     
-    def _extract_data(self) -> list[dict]:
-        """提取页面数据（修复：使用detailTab而非dataTable）"""
+    def _extract_data(self, week_start_date: str | None = None) -> list[dict]:
+        """
+        提取页面数据（修复：使用detailTab而非dataTable）
+        
+        Args:
+            week_start_date: 当前周的开始日期（周一），如果为None则使用当前周
+        """
         try:
             # 🔧 修复1：表格class为detailTab（不是dataTable）
             # 🔧 修复2：增加超时时间到30秒
@@ -583,6 +643,17 @@ class MysteelCrawler:
             tbody = table.find_element(By.TAG_NAME, "tbody")
             rows = tbody.find_elements(By.TAG_NAME, "tr")
             data = []
+            
+            # 使用传入的日期或当前周的周一
+            if week_start_date:
+                week_start_str = week_start_date
+                logger.info(f"📅 数据日期设置为: {week_start_str}")
+            else:
+                today = datetime.now()
+                weekday = today.weekday()  # 0=周一, 6=周日
+                week_start = today - timedelta(days=weekday)  # 回退到周一
+                week_start_str = week_start.strftime("%Y-%m-%d")
+                logger.info(f"📅 数据日期设置为当前周周一: {week_start_str}")
             
             logger.info(f"📊 找到 {len(rows)} 行数据")
             
@@ -607,7 +678,7 @@ class MysteelCrawler:
                         
                         data.append({
                             "variety": variety_name,  # 品种名称
-                            "date": datetime.now().strftime("%Y-%m-%d"),  # 使用当前日期
+                            "date": week_start_str,  # 使用传入的周开始日期
                             "price": today_price,
                             "change_rate": daily_change,
                             "change_amount": "",  # detailTab没有涨跌金额
@@ -637,7 +708,7 @@ class MysteelCrawler:
             return []
     
     def _process_data(self, data: list[dict], material_info: dict) -> pd.DataFrame:
-        """处理数据为标准格式"""
+        """处理数据为标准格式，并计算涨跌幅（基于7天前数据）"""
         if not data:
             return pd.DataFrame()
         
@@ -652,32 +723,65 @@ class MysteelCrawler:
         # 转换价格
         df["price"] = df["price"].str.replace(",", "").astype(float)
         
-        # 转换涨跌幅（移除百分号和加号）
-        df["change_rate"] = (
-            df["change_rate"]
-            .str.replace("%", "")
-            .str.replace("+", "")
-            .replace("", "0")  # 空值替换为0
-            .astype(float)
-        )
-        
-        # 处理涨跌金额（detailTab没有此字段，设为0或None）
-        if "change_amount" in df.columns and df["change_amount"].notna().any():
-            df["change_amount"] = (
-                df["change_amount"]
-                .str.replace("+", "")
-                .replace("", "0")
-                .astype(float)
-            )
-        else:
-            df["change_amount"] = 0.0
-        
-        # 转换日期
+        # 转换日期（先转换，用于排序和计算）
         df["price_date"] = pd.to_datetime(df["date"])
         df = df.drop(columns=["date"])
         
-        # 删除品种列（如果存在）
-        if "variety" in df.columns:
+        # 保留品种列用于分组计算（variety 是品种名称，如"HRB400E 20mm"）
+        has_variety = "variety" in df.columns
+        
+        # 🆕 按日期排序（从旧到新）
+        df = df.sort_values("price_date").reset_index(drop=True)
+        
+        # 🆕 计算涨跌幅（相对于7天前）
+        df["change_rate"] = 0.0
+        df["change_amount"] = 0.0
+        
+        logger.info(f"🧮 开始计算涨跌幅（基于7天前数据）...")
+        
+        for idx, row in df.iterrows():
+            current_date = row["price_date"]
+            current_price = row["price"]
+            
+            # 计算7天前的日期
+            week_ago = current_date - timedelta(days=7)
+            
+            # 查找7天前的数据（同品种）
+            if has_variety:
+                # 如果有品种信息，按品种查找
+                mask = (df["price_date"] == week_ago) & (df["variety"] == row["variety"])
+            else:
+                # 否则只按日期查找（假设每周只有一个价格）
+                mask = df["price_date"] == week_ago
+            
+            prev_data = df[mask]
+            
+            if not prev_data.empty:
+                prev_price = prev_data.iloc[0]["price"]
+                
+                # 计算涨跌幅和涨跌金额
+                change_amount = current_price - prev_price
+                change_rate = (change_amount / prev_price * 100) if prev_price != 0 else 0.0
+                
+                df.at[idx, "change_rate"] = round(change_rate, 2)
+                df.at[idx, "change_amount"] = round(change_amount, 2)
+                
+                logger.debug(f"  {row.get('variety', material_info['name'])} {current_date.strftime('%Y-%m-%d')}: "
+                           f"{prev_price} → {current_price} ({change_rate:+.2f}%)")
+            else:
+                # 找不到7天前的数据，设为None（表示无对比数据）
+                df.at[idx, "change_rate"] = None
+                df.at[idx, "change_amount"] = None
+                logger.debug(f"  {row.get('variety', material_info['name'])} {current_date.strftime('%Y-%m-%d')}: "
+                           f"无对比数据（7天前 {week_ago.strftime('%Y-%m-%d')} 无数据）")
+        
+        # 统计涨跌幅计算结果
+        total_count = len(df)
+        calculated_count = df["change_rate"].notna().sum()
+        logger.info(f"✅ 涨跌幅计算完成: {calculated_count}/{total_count} 条数据成功计算")
+        
+        # 删除品种列（避免保存到数据库）
+        if has_variety:
             df = df.drop(columns=["variety"])
         
         return df
@@ -748,8 +852,8 @@ def main():
     parser.add_argument(
         "--start-date",
         type=str,
-        default=(datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d"),
-        help="开始日期（YYYY-MM-DD）",
+        default=(datetime.now() - timedelta(days=21)).strftime("%Y-%m-%d"),
+        help="开始日期（YYYY-MM-DD），默认前21天（至少两周数据）",
     )
     parser.add_argument(
         "--end-date",
