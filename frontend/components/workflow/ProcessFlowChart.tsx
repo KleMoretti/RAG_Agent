@@ -25,6 +25,7 @@ interface ProcessFlowChartProps {
     edges: ProcessEdge[];
     selectedNodeId?: string;
     onNodeSelect: (node: ProcessNode) => void;
+    zoom?: number;
 }
 
 // 图标映射
@@ -58,6 +59,7 @@ export function ProcessFlowChart({
     edges,
     selectedNodeId,
     onNodeSelect,
+    zoom = 100,
 }: ProcessFlowChartProps) {
     const [hoveredNodeId, setHoveredNodeId] = React.useState<string | null>(null);
 
@@ -77,28 +79,41 @@ export function ProcessFlowChart({
         return `M ${sx} ${sy} C ${mx} ${sy}, ${mx} ${ty}, ${tx} ${ty}`;
     };
 
+    // 计算缩放后的尺寸
+    const scaledWidth = 2200 * (zoom / 100);
+    const scaledHeight = 600 * (zoom / 100);
+
     return (
         <div className="relative w-full h-full overflow-auto bg-muted/30 rounded-lg border">
-            <svg
-                className="absolute top-0 left-0 w-full h-full pointer-events-none"
-                style={{ minWidth: "2200px", minHeight: "600px" }}
+            <div
+                className="relative"
+                style={{
+                    width: `${scaledWidth}px`,
+                    height: `${scaledHeight}px`,
+                    transformOrigin: "top left",
+                    transform: `scale(${zoom / 100})`,
+                }}
             >
-                <defs>
-                    <marker
-                        id="arrowhead"
-                        markerWidth="10"
-                        markerHeight="7"
-                        refX="9"
-                        refY="3.5"
-                        orient="auto"
-                    >
-                        <polygon
-                            points="0 0, 10 3.5, 0 7"
-                            fill="currentColor"
-                            className="text-border"
-                        />
-                    </marker>
-                </defs>
+                <svg
+                    className="absolute top-0 left-0 w-full h-full pointer-events-none"
+                    style={{ width: "2200px", height: "600px" }}
+                >
+                    <defs>
+                        <marker
+                            id="arrowhead"
+                            markerWidth="10"
+                            markerHeight="7"
+                            refX="9"
+                            refY="3.5"
+                            orient="auto"
+                        >
+                            <polygon
+                                points="0 0, 10 3.5, 0 7"
+                                fill="currentColor"
+                                className="text-border"
+                            />
+                        </marker>
+                    </defs>
 
                 {/* 绘制连线 */}
                 {edges.map((edge) => (
@@ -134,77 +149,78 @@ export function ProcessFlowChart({
                         )}
                     </g>
                 ))}
-            </svg>
+                </svg>
 
-            {/* 绘制节点 */}
-            <div className="relative" style={{ minWidth: "2200px", minHeight: "600px" }}>
-                {nodes.map((node) => {
-                    const Icon = getNodeIcon(node.type, node.name);
-                    const colors = NODE_COLORS[node.type];
-                    const isSelected = selectedNodeId === node.id;
-                    const isHovered = hoveredNodeId === node.id;
+                {/* 绘制节点 */}
+                <div className="relative" style={{ width: "2200px", height: "600px" }}>
+                    {nodes.map((node) => {
+                        const Icon = getNodeIcon(node.type, node.name);
+                        const colors = NODE_COLORS[node.type];
+                        const isSelected = selectedNodeId === node.id;
+                        const isHovered = hoveredNodeId === node.id;
 
-                    return (
-                        <Card
-                            key={node.id}
-                            className={cn(
-                                "absolute cursor-pointer transition-all duration-200",
-                                "hover:shadow-lg hover:scale-105",
-                                "w-60 p-3",
-                                colors.bg,
-                                "border-2",
-                                node.status ? STATUS_COLORS[node.status] : colors.border,
-                                isSelected && "ring-2 ring-primary shadow-xl scale-105",
-                                isHovered && !isSelected && "shadow-md scale-102",
-                            )}
-                            style={{
-                                left: `${node.position.x}px`,
-                                top: `${node.position.y}px`,
-                            }}
-                            onClick={() => onNodeSelect(node)}
-                            onMouseEnter={() => setHoveredNodeId(node.id)}
-                            onMouseLeave={() => setHoveredNodeId(null)}
-                        >
-                            <div className="space-y-2">
-                                {/* 节点头部 */}
-                                <div className="flex items-start justify-between gap-2">
-                                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                                        <Icon className={cn("size-5 flex-shrink-0", colors.text)} />
-                                        <h3 className={cn("font-semibold text-sm truncate", colors.text)}>
-                                            {node.name}
-                                        </h3>
-                                    </div>
-                                    {getStatusIcon(node.status)}
-                                </div>
-
-                                {/* 节点描述 */}
-                                <p className="text-xs text-muted-foreground line-clamp-2">
-                                    {node.description}
-                                </p>
-
-                                {/* 关键参数预览 */}
-                                {node.parameters && node.parameters.length > 0 && (
-                                    <div className="flex flex-wrap gap-1">
-                                        {node.parameters.slice(0, 2).map((param, idx) => (
-                                            <Badge
-                                                key={idx}
-                                                variant="secondary"
-                                                className="text-xs px-1.5 py-0.5"
-                                            >
-                                                {param.name}
-                                            </Badge>
-                                        ))}
-                                        {node.parameters.length > 2 && (
-                                            <Badge variant="outline" className="text-xs px-1.5 py-0.5">
-                                                +{node.parameters.length - 2}
-                                            </Badge>
-                                        )}
-                                    </div>
+                        return (
+                            <Card
+                                key={node.id}
+                                className={cn(
+                                    "absolute cursor-pointer transition-all duration-200",
+                                    "hover:shadow-lg hover:scale-105",
+                                    "w-60 p-3",
+                                    colors.bg,
+                                    "border-2",
+                                    node.status ? STATUS_COLORS[node.status] : colors.border,
+                                    isSelected && "ring-2 ring-primary shadow-xl scale-105",
+                                    isHovered && !isSelected && "shadow-md scale-102",
                                 )}
-                            </div>
-                        </Card>
-                    );
-                })}
+                                style={{
+                                    left: `${node.position.x}px`,
+                                    top: `${node.position.y}px`,
+                                }}
+                                onClick={() => onNodeSelect(node)}
+                                onMouseEnter={() => setHoveredNodeId(node.id)}
+                                onMouseLeave={() => setHoveredNodeId(null)}
+                            >
+                                <div className="space-y-2">
+                                    {/* 节点头部 */}
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                                            <Icon className={cn("size-5 flex-shrink-0", colors.text)} />
+                                            <h3 className={cn("font-semibold text-sm truncate", colors.text)}>
+                                                {node.name}
+                                            </h3>
+                                        </div>
+                                        {getStatusIcon(node.status)}
+                                    </div>
+
+                                    {/* 节点描述 */}
+                                    <p className="text-xs text-muted-foreground line-clamp-2">
+                                        {node.description}
+                                    </p>
+
+                                    {/* 关键参数预览 */}
+                                    {node.parameters && node.parameters.length > 0 && (
+                                        <div className="flex flex-wrap gap-1">
+                                            {node.parameters.slice(0, 2).map((param, idx) => (
+                                                <Badge
+                                                    key={idx}
+                                                    variant="secondary"
+                                                    className="text-xs px-1.5 py-0.5"
+                                                >
+                                                    {param.name}
+                                                </Badge>
+                                            ))}
+                                            {node.parameters.length > 2 && (
+                                                <Badge variant="outline" className="text-xs px-1.5 py-0.5">
+                                                    +{node.parameters.length - 2}
+                                                </Badge>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </Card>
+                        );
+                    })}
+                </div>
             </div>
         </div>
     );

@@ -155,16 +155,14 @@ export default function WorkflowPage() {
                         </Card>
 
                         {/* 流程图 */}
-                        <div
-                            className="flex-1 overflow-hidden"
-                            style={{ transform: `scale(${zoom / 100})`, transformOrigin: "top left" }}
-                        >
+                        <div className="flex-1 overflow-hidden">
                             {viewMode === "flow" ? (
                                 <ProcessFlowChart
                                     nodes={STEEL_PROCESS_NODES}
                                     edges={STEEL_PROCESS_EDGES}
                                     selectedNodeId={selectedNode?.id}
                                     onNodeSelect={handleNodeSelect}
+                                    zoom={zoom}
                                 />
                             ) : (
                                 <Card className="h-full overflow-auto">
