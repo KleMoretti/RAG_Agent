@@ -57,6 +57,7 @@ import {
     getRoleIcon,
 } from "@/lib/permissions";
 import { SettingsDialog } from "@/components/shared/SettingsDialog";
+import { PreferencesDialog } from "@/components/shared/PreferencesDialog";
 
 // 默认图标映射（用于向后兼容）
 const defaultIcons: Record<string, any> = {
@@ -202,6 +203,7 @@ export function AppSidebar() {
 
     // 设置对话框状态
     const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
+    const [isPreferencesOpen, setIsPreferencesOpen] = React.useState(false);
 
     // 鼠标悬停事件处理
     const handleAgentMouseEnter = (
@@ -792,7 +794,9 @@ export function AppSidebar() {
                                         <Settings className="mr-2 size-4" />
                                         个人设置
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        onClick={() => setIsPreferencesOpen(true)}
+                                    >
                                         <Settings className="mr-2 size-4" />
                                         系统设置
                                     </DropdownMenuItem>
@@ -823,6 +827,12 @@ export function AppSidebar() {
             <SettingsDialog
                 open={isSettingsOpen}
                 onOpenChange={setIsSettingsOpen}
+            />
+
+            {/* 系统设置对话框 */}
+            <PreferencesDialog
+                open={isPreferencesOpen}
+                onOpenChange={setIsPreferencesOpen}
             />
         </>
     );
