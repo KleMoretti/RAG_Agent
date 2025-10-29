@@ -72,6 +72,7 @@ export const ROUTES = {
     // EQUIPMENT: '/dashboard/equipment',
     // MARKET: '/dashboard/market',
     KNOWLEDGE: "/dashboard/knowledge",
+    KNOWLEDGE_GRAPH: "/dashboard/knowledge-graph",
     // WORKFLOW: '/dashboard/workflow',
     ADMIN: "/dashboard/admin",
 } as const;

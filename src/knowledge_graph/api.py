@@ -494,8 +494,9 @@ async def get_entity_types(
 ):
     """获取所有实体类型"""
     try:
-        entity_types = [{"value": et.value, "name": et.name} for et in SteelEntityType]
-        return {"entity_types": entity_types}
+        # 返回实体类型值的数组，用于前端筛选
+        entity_type_values = [et.value for et in SteelEntityType]
+        return entity_type_values
     
     except Exception as e:
         logger.error(f"Error getting entity types: {e}")
@@ -514,3 +515,51 @@ async def get_relation_types(
     except Exception as e:
         logger.error(f"Error getting relation types: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/build")
+async def build_knowledge_graph(
+    current_user: User = Depends(get_current_user)
+):
+    """
+    构建/重建知识图谱（管理员和经理专用）
+    从已处理的文档中构建知识图谱
+    """
+    try:
+        # 检查权限（只允许管理员和经理）
+        if current_user.role not in ["admin", "manager"]:
+            raise HTTPException(
+                status_code=403,
+                detail="只有管理员和经理可以构建知识图谱"
+            )
+        
+        logger.info(f"User {current_user.username} ({current_user.role}) started building knowledge graph")
+        
+        # 导入管理器
+        from ..knowledge_graph.manager import SteelKnowledgeGraphManager
+        
+        # 创建管理器并构建知识图谱
+        kg_manager = SteelKnowledgeGraphManager()
+        kg = kg_manager.build_from_processed_files()
+        
+        # 更新全局知识图谱实例
+        global knowledge_graph_builder, knowledge_graph_query
+        knowledge_graph_builder = kg_manager.builder
+        knowledge_graph_query = SteelKnowledgeGraphQuery(kg)
+        
+        # 获取统计信息
+        stats = kg_manager.get_statistics()
+        
+        logger.info(f"Knowledge graph built successfully: {stats}")
+        
+        return {
+            "success": True,
+            "message": "知识图谱构建成功",
+            "stats": stats
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error building knowledge graph: {e}")
+        raise HTTPException(status_code=500, detail=f"构建知识图谱时出错: {str(e)}")

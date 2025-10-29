@@ -96,7 +96,7 @@ export default function WorkflowPage() {
                         <Card className="flex-shrink-0">
                             <CardContent className="p-3 flex items-center justify-between">
                                 <div className="flex items-center gap-2">
-                                    <Select value={viewMode} onValueChange={(v: any) => setViewMode(v)}>
+                                    <Select value={viewMode} onValueChange={(v: string) => setViewMode(v as "flow" | "list")}>
                                         <SelectTrigger className="w-32">
                                             <SelectValue />
                                         </SelectTrigger>

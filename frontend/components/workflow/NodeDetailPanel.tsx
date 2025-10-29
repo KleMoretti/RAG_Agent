@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import type { ProcessNode } from "@/lib/types/workflow";
+import type { ProcessNode, ProcessParameter } from "@/lib/types/workflow";
 import {
     TrendingUp,
     TrendingDown,
@@ -25,7 +25,7 @@ export function NodeDetailPanel({ node, onClose }: NodeDetailPanelProps) {
     if (!node) return null;
 
     // 参数状态图标
-    const getParamStatusIcon = (param: any) => {
+    const getParamStatusIcon = (param: ProcessParameter) => {
         if (!param.actualValue || !param.range) return <Minus className="size-4 text-muted-foreground" />;
         
         const actual = typeof param.actualValue === 'string' ? parseFloat(param.actualValue) : param.actualValue;

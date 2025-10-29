@@ -9,6 +9,11 @@ export enum UserRole {
 }
 
 /**
+ * User role type (compatible with api.ts)
+ */
+export type UserRoleType = "admin" | "manager" | "technician" | "user";
+
+/**
  * User permission interface
  */
 export interface UserPermissions {
@@ -31,7 +36,7 @@ export interface User {
     id: number;
     username: string;
     email?: string;
-    role: string;
+    role: UserRoleType;  // 使用联合类型而非 string
     is_active: boolean;
     can_upload: boolean;
     can_download: boolean;

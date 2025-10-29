@@ -41,7 +41,7 @@ export interface LoginResponse {
     token_type: string;
 }
 
-export interface MeResponse extends User {}
+export type MeResponse = User;
 
 /**
  * Chat attachment interface

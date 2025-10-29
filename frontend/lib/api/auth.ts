@@ -25,11 +25,32 @@ export const authApi = {
    * Login user
    */
   async login(credentials: LoginCredentials): Promise<LoginResponse> {
-    const response = await apiClient.post<LoginResponse>(
-      API_ENDPOINTS.LOGIN,
-      credentials
-    );
-    return response.data;
+    try {
+      const response = await apiClient.post<LoginResponse>(
+        API_ENDPOINTS.LOGIN,
+        credentials
+      );
+      return response.data;
+    } catch (error: unknown) {
+      // Extract error message from backend response
+      if (error instanceof Error) {
+        throw error;
+      }
+      
+      const axiosError = error as { response?: { data?: { detail?: string }; status?: number }; message?: string };
+      if (axiosError.response?.data?.detail) {
+        // Backend returned a specific error message (e.g., "用户名或密码错误")
+        throw new Error(axiosError.response.data.detail);
+      } else if (axiosError.response?.status === 401) {
+        // Generic 401 error
+        throw new Error("用户名或密码错误");
+      } else if (axiosError.message) {
+        // Network or other errors
+        throw new Error(axiosError.message);
+      } else {
+        throw new Error("登录失败，请稍后重试");
+      }
+    }
   },
 
   /**

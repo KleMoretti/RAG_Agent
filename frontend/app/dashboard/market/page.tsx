@@ -76,9 +76,12 @@ export default function MarketPage() {
             setUploadFile(null);
             // 重新加载数据
             await loadMarketData();
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("上传失败:", error);
-            toast.error(error.response?.data?.detail || "上传失败");
+            const errorMessage = error instanceof Error 
+                ? error.message 
+                : (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "上传失败";
+            toast.error(errorMessage);
         } finally {
             setUploading(false);
         }

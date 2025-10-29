@@ -53,30 +53,38 @@ apiClient.interceptors.response.use(
     return response;
   },
   (error) => {
-    // Handle 401 Unauthorized - redirect to login
+    // Handle 401 Unauthorized - redirect to login (except when already on login page)
     if (error.response?.status === 401) {
-      // Check if we're already on the login page to avoid redirect loops
-      const isOnLoginPage = typeof window !== 'undefined' && 
-        (window.location.pathname === '/login' || window.location.pathname.startsWith('/login'));
+      // Check if we're already on the login or register page to avoid redirect loops
+      const isOnAuthPage = typeof window !== 'undefined' && 
+        (window.location.pathname === '/login' || 
+         window.location.pathname.startsWith('/login') ||
+         window.location.pathname === '/register' ||
+         window.location.pathname.startsWith('/register'));
       
-      // Clear auth data from localStorage
-      localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
-      localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
-      localStorage.removeItem(STORAGE_KEYS.USER);
-      
-      // Clear auth token from cookie to prevent middleware redirect loop
-      if (typeof document !== 'undefined') {
-        document.cookie = 'auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      // Only clear auth data and redirect if NOT on auth pages
+      // This allows login/register pages to handle their own errors
+      if (!isOnAuthPage) {
+        // Clear auth data from localStorage
+        localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
+        localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+        localStorage.removeItem(STORAGE_KEYS.USER);
+        
+        // Clear auth token from cookie to prevent middleware redirect loop
+        if (typeof document !== 'undefined') {
+          document.cookie = 'auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+        }
+        
+        // Redirect to login page
+        if (typeof window !== 'undefined') {
+          // Use setTimeout to avoid interrupting the current navigation
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 100);
+        }
       }
-      
-      // Only redirect to login if not already on login page
-      // This prevents redirect loops and allows AuthGuard to handle the error gracefully
-      if (typeof window !== 'undefined' && !isOnLoginPage) {
-        // Use setTimeout to avoid interrupting the current navigation
-        setTimeout(() => {
-          window.location.href = '/login';
-        }, 100);
-      }
+      // If on auth pages, just reject the error without redirecting
+      // The auth page will handle the error and display appropriate message
     }
     
     // Handle 403 Forbidden

@@ -12,8 +12,11 @@ import {
     Download,
     FileText,
     MoreVertical,
+    Network,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useAuthStore } from "@/store/authStore";
+import { hasPermission } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -55,6 +58,7 @@ import { formatBytes, formatDate } from "@/lib/utils";
 import { PAGINATION } from "@/lib/constants";
 import { DocumentEditDialog } from "@/components/knowledge/DocumentEditDialog";
 import { FileUploadDialog } from "@/components/knowledge/FileUploadDialog";
+import { useRouter } from "next/navigation";
 
 export default function KnowledgeBasePage() {
     const [search, setSearch] = useState("");
@@ -73,6 +77,12 @@ export default function KnowledgeBasePage() {
     const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
 
     const queryClient = useQueryClient();
+    const { user } = useAuthStore();
+    const router = useRouter();
+
+    // 检查用户权限
+    const canUpload = hasPermission(user, "canUpload");
+    const canDelete = hasPermission(user, "canDelete");
 
     // 获取文档列表
     const { data, isLoading, error } = useQuery({
@@ -262,9 +272,10 @@ export default function KnowledgeBasePage() {
     const total = data?.meta?.total || 0;
 
     return (
-        <div className="container mx-auto p-6 space-y-6">
-            {/* 页面标题 */}
-            <div>
+        <div className="h-full overflow-y-auto">
+            <div className="container mx-auto p-6 space-y-6">
+                {/* 页面标题 */}
+                <div>
                 <h1 className="text-3xl font-bold">知识库管理</h1>
                 <p className="text-muted-foreground mt-2">
                     管理和查看已上传的文档，支持预览、编辑和删除操作
@@ -287,7 +298,7 @@ export default function KnowledgeBasePage() {
                                     className="pl-10"
                                 />
                             </div>
-                            {selectedDocs.size > 0 && (
+                            {canDelete && selectedDocs.size > 0 && (
                                 <Button
                                     variant="destructive"
                                     size="sm"
@@ -299,10 +310,21 @@ export default function KnowledgeBasePage() {
                                 </Button>
                             )}
                         </div>
-                        <Button onClick={() => setIsUploadDialogOpen(true)}>
-                            <Upload className="h-4 w-4 mr-2" />
-                            上传文档
-                        </Button>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="outline"
+                                onClick={() => router.push("/dashboard/knowledge-graph")}
+                            >
+                                <Network className="h-4 w-4 mr-2" />
+                                知识图谱
+                            </Button>
+                            {canUpload && (
+                                <Button onClick={() => setIsUploadDialogOpen(true)}>
+                                    <Upload className="h-4 w-4 mr-2" />
+                                    上传文档
+                                </Button>
+                            )}
+                        </div>
                     </div>
                 </CardHeader>
                 <CardContent>
@@ -325,16 +347,18 @@ export default function KnowledgeBasePage() {
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead className="w-12">
-                                        <Checkbox
-                                            checked={
-                                                documents.length > 0 &&
-                                                selectedDocs.size ===
-                                                    documents.length
-                                            }
-                                            onCheckedChange={handleSelectAll}
-                                        />
-                                    </TableHead>
+                                    {canDelete && (
+                                        <TableHead className="w-12">
+                                            <Checkbox
+                                                checked={
+                                                    documents.length > 0 &&
+                                                    selectedDocs.size ===
+                                                        documents.length
+                                                }
+                                                onCheckedChange={handleSelectAll}
+                                            />
+                                        </TableHead>
+                                    )}
                                     <TableHead>文件名</TableHead>
                                     <TableHead>大小</TableHead>
                                     <TableHead>上传时间</TableHead>
@@ -387,16 +411,18 @@ export default function KnowledgeBasePage() {
                                 ) : (
                                     documents.map((doc) => (
                                         <TableRow key={doc.id}>
-                                            <TableCell>
-                                                <Checkbox
-                                                    checked={selectedDocs.has(
-                                                        doc.id,
-                                                    )}
-                                                    onCheckedChange={() =>
-                                                        handleSelectDoc(doc.id)
-                                                    }
-                                                />
-                                            </TableCell>
+                                            {canDelete && (
+                                                <TableCell>
+                                                    <Checkbox
+                                                        checked={selectedDocs.has(
+                                                            doc.id,
+                                                        )}
+                                                        onCheckedChange={() =>
+                                                            handleSelectDoc(doc.id)
+                                                        }
+                                                    />
+                                                </TableCell>
+                                            )}
                                             <TableCell className="font-medium">
                                                 <div className="flex items-center gap-2">
                                                     <FileText className="h-4 w-4 text-muted-foreground" />
@@ -458,44 +484,52 @@ export default function KnowledgeBasePage() {
                                                             <Download className="h-4 w-4 mr-2" />
                                                             下载
                                                         </DropdownMenuItem>
-                                                        <DropdownMenuItem
-                                                            onClick={() =>
-                                                                handleEdit(doc)
-                                                            }
-                                                        >
-                                                            <Edit className="h-4 w-4 mr-2" />
-                                                            编辑
-                                                        </DropdownMenuItem>
-                                                        <DropdownMenuItem
-                                                            onClick={() =>
-                                                                handleReindex(
-                                                                    doc,
-                                                                )
-                                                            }
-                                                            disabled={
-                                                                reindexMutation.isPending
-                                                            }
-                                                        >
-                                                            <RefreshCw
-                                                                className={`h-4 w-4 mr-2 ${reindexMutation.isPending ? "animate-spin" : ""}`}
-                                                            />
-                                                            重新索引
-                                                        </DropdownMenuItem>
-                                                        <DropdownMenuSeparator />
-                                                        <DropdownMenuItem
-                                                            className="text-destructive"
-                                                            onClick={() => {
-                                                                setDocToDelete(
-                                                                    doc,
-                                                                );
-                                                                setIsDeleteDialogOpen(
-                                                                    true,
-                                                                );
-                                                            }}
-                                                        >
-                                                            <Trash2 className="h-4 w-4 mr-2" />
-                                                            删除
-                                                        </DropdownMenuItem>
+                                                        {canUpload && (
+                                                            <>
+                                                                <DropdownMenuItem
+                                                                    onClick={() =>
+                                                                        handleEdit(doc)
+                                                                    }
+                                                                >
+                                                                    <Edit className="h-4 w-4 mr-2" />
+                                                                    编辑
+                                                                </DropdownMenuItem>
+                                                                <DropdownMenuItem
+                                                                    onClick={() =>
+                                                                        handleReindex(
+                                                                            doc,
+                                                                        )
+                                                                    }
+                                                                    disabled={
+                                                                        reindexMutation.isPending
+                                                                    }
+                                                                >
+                                                                    <RefreshCw
+                                                                        className={`h-4 w-4 mr-2 ${reindexMutation.isPending ? "animate-spin" : ""}`}
+                                                                    />
+                                                                    重新索引
+                                                                </DropdownMenuItem>
+                                                            </>
+                                                        )}
+                                                        {canDelete && (
+                                                            <>
+                                                                <DropdownMenuSeparator />
+                                                                <DropdownMenuItem
+                                                                    className="text-destructive"
+                                                                    onClick={() => {
+                                                                        setDocToDelete(
+                                                                            doc,
+                                                                        );
+                                                                        setIsDeleteDialogOpen(
+                                                                            true,
+                                                                        );
+                                                                    }}
+                                                                >
+                                                                    <Trash2 className="h-4 w-4 mr-2" />
+                                                                    删除
+                                                                </DropdownMenuItem>
+                                                            </>
+                                                        )}
                                                     </DropdownMenuContent>
                                                 </DropdownMenu>
                                             </TableCell>
@@ -615,6 +649,7 @@ export default function KnowledgeBasePage() {
                 open={isUploadDialogOpen}
                 onOpenChange={setIsUploadDialogOpen}
             />
+            </div>
         </div>
     );
 }

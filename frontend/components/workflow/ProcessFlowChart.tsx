@@ -130,23 +130,23 @@ export function ProcessFlowChart({
                                 edge.type === "energy" && "stroke-dasharray-5",
                             )}
                         />
-                        {edge.label && (
-                            <text
-                                x={
-                                    (nodes.find((n) => n.id === edge.source)?.position.x! + 120 +
-                                        nodes.find((n) => n.id === edge.target)?.position.x!) / 2
-                                }
-                                y={
-                                    (nodes.find((n) => n.id === edge.source)?.position.y! + 40 +
-                                        nodes.find((n) => n.id === edge.target)?.position.y! + 40) / 2 - 5
-                                }
-                                fill="currentColor"
-                                className="text-xs text-muted-foreground pointer-events-none"
-                                textAnchor="middle"
-                            >
-                                {edge.label}
-                            </text>
-                        )}
+                        {edge.label && (() => {
+                            const sourceNode = nodes.find((n) => n.id === edge.source);
+                            const targetNode = nodes.find((n) => n.id === edge.target);
+                            if (!sourceNode || !targetNode) return null;
+                            
+                            return (
+                                <text
+                                    x={(sourceNode.position.x + 120 + targetNode.position.x) / 2}
+                                    y={(sourceNode.position.y + 40 + targetNode.position.y + 40) / 2 - 5}
+                                    fill="currentColor"
+                                    className="text-xs text-muted-foreground pointer-events-none"
+                                    textAnchor="middle"
+                                >
+                                    {edge.label}
+                                </text>
+                            );
+                        })()}
                     </g>
                 ))}
                 </svg>

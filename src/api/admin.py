@@ -29,6 +29,14 @@ def require_admin(user: User = Depends(_get_current_user)) -> User:
     return user
 
 
+def require_manager_or_admin(user: User = Depends(_get_current_user)) -> User:
+    """要求管理员或经理权限"""
+    if user.role not in [UserRole.ADMIN, UserRole.MANAGER]:
+        logger.warning(f"User {user.username} ({user.role}) attempted manager/admin access")
+        raise HTTPException(status_code=403, detail="需要管理员或经理权限")
+    return user
+
+
 # 请求/响应模型
 class UserCreateRequest(BaseModel):
     username: constr(min_length=3, max_length=64)
@@ -402,9 +410,9 @@ def list_files(
     page_size: int = Query(10, ge=1, le=100),
     search: str | None = Query(None),
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin),
+    current_user: User = Depends(_get_current_user),
 ):
-    """获取文件列表"""
+    """获取文件列表（所有登录用户可查看）"""
     try:
         from pathlib import Path
         import os
@@ -486,9 +494,9 @@ def list_files(
 
 @router.delete("/files/{file_name}")
 def delete_file(
-    file_name: str, db: Session = Depends(get_db), admin: User = Depends(require_admin)
+    file_name: str, db: Session = Depends(get_db), admin: User = Depends(require_manager_or_admin)
 ):
-    """删除文件（包括 data/raw 原始文件和 data/processed 处理文件）"""
+    """删除文件（需要管理员或经理权限）"""
     try:
         from pathlib import Path
         import os
@@ -515,7 +523,7 @@ def delete_file(
             done_file.unlink()
 
         logger.info(
-            f"File {file_name} and its processed files deleted by admin {admin.username}"
+            f"File {file_name} and its processed files deleted by {admin.username} ({admin.role})"
         )
         return {"message": "文件删除成功"}
 
@@ -530,9 +538,9 @@ def delete_file(
 def batch_delete_files(
     request: BatchDeleteRequest,
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin),
+    admin: User = Depends(require_manager_or_admin),
 ):
-    """批量删除文件（包括原始文件和处理文件）"""
+    """批量删除文件（需要管理员或经理权限）"""
     try:
         from pathlib import Path
 
@@ -566,7 +574,7 @@ def batch_delete_files(
 
                 success.append(file_name)
                 logger.info(
-                    f"File {file_name} and its processed files deleted by admin {admin.username}"
+                    f"File {file_name} and its processed files deleted by {admin.username} ({admin.role})"
                 )
 
             except Exception as e:
@@ -584,9 +592,9 @@ def batch_delete_files(
 
 @router.get("/files/{file_name}/preview")
 def preview_file(
-    file_name: str, db: Session = Depends(get_db), admin: User = Depends(require_admin)
+    file_name: str, db: Session = Depends(get_db), current_user: User = Depends(_get_current_user)
 ):
-    """预览文件内容"""
+    """预览文件内容（所有登录用户可查看）"""
     try:
         from pathlib import Path
 
@@ -663,9 +671,9 @@ def preview_file(
 
 @router.get("/files/{file_name}/download")
 def download_file(
-    file_name: str, db: Session = Depends(get_db), admin: User = Depends(require_admin)
+    file_name: str, db: Session = Depends(get_db), current_user: User = Depends(_get_current_user)
 ):
-    """下载文件"""
+    """下载文件（所有登录用户可下载）"""
     try:
         from pathlib import Path
         from fastapi.responses import FileResponse
@@ -686,7 +694,7 @@ def download_file(
             if len(parts) == 2:
                 display_name = parts[1]
 
-        logger.info(f"File {file_name} downloaded by admin {admin.username}")
+        logger.info(f"File {file_name} downloaded by {current_user.username} ({current_user.role})")
 
         return FileResponse(
             path=str(raw_path),

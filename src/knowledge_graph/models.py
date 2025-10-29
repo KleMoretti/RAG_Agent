@@ -219,6 +219,30 @@ class SteelKnowledgeGraph:
                 any(name.lower() in alias.lower() for alias in entity.aliases)):
                 results.append(entity)
         return results
+    
+    def get_statistics(self) -> Dict[str, Any]:
+        """获取知识图谱统计信息"""
+        # 实体类型统计
+        entity_type_counts = {}
+        for entity_type, entity_ids in self.entity_index.items():
+            entity_type_counts[entity_type.value] = len(entity_ids)
+        
+        # 关系类型统计
+        relation_type_counts = {}
+        for relation_type, relation_ids in self.relation_index.items():
+            relation_type_counts[relation_type.value] = len(relation_ids)
+        
+        # 平均置信度
+        total_confidence = sum(entity.confidence for entity in self.entities.values())
+        average_confidence = total_confidence / len(self.entities) if self.entities else 0.0
+        
+        return {
+            "total_entities": len(self.entities),
+            "total_relations": len(self.relations),
+            "entity_type_counts": entity_type_counts,
+            "relation_type_counts": relation_type_counts,
+            "average_confidence": average_confidence
+        }
 
 
 # 钢铁领域特定常量

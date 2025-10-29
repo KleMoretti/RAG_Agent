@@ -235,14 +235,119 @@ python scripts/init_test_users.py
 
 **前端开发者检查清单**：
 
-- [ ] 角色标签正确显示在侧边栏用户菜单
-- [ ] Agent 列表根据角色过滤（technician 仅 3 个）
-- [ ] 导航菜单根据角色显示/隐藏
-- [ ] 知识库上传按钮根据 `can_upload` 权限显示
-- [ ] 设备/市场页面显示角色特定提示卡片
-- [ ] 默认 Agent 根据角色自动选中（technician → equipment）
-- [ ] 页面访问权限控制（middleware 或路由守卫）
+- [x] 角色标签正确显示在侧边栏用户菜单
+- [x] Agent 列表根据角色过滤（technician 仅 3 个）
+- [x] 导航菜单根据角色显示/隐藏
+- [x] **知识库权限控制**（已实现 ✅）
+  - 技术员可以查看知识库、预览、下载文档
+  - 技术员看不到上传、删除、编辑、重新索引按钮
+  - 管理员和经理有全部权限
+- [x] 设备/市场页面显示角色特定提示卡片
+- [x] 默认 Agent 根据角色自动选中（technician → equipment）
+- [x] 页面访问权限控制（middleware 或路由守卫）
 - [x] **聊天记录按用户隔离**（已实现）
+
+### 知识库权限管理（2025-10-29 修复）
+
+**问题**：技术员（technician）无法访问知识库页面，返回 403 Forbidden
+
+**原因**：
+- 后端 `/api/admin/files` 等接口全部要求管理员权限（`require_admin`）
+- 技术员角色虽然有 `canAccessKnowledge: true`，但无法查看文档列表
+
+**解决方案**（已实现 ✅）：
+
+#### 1. 后端权限分级（`src/api/admin.py`）
+
+**新增权限装饰器**：
+```python
+def require_manager_or_admin(user: User = Depends(_get_current_user)) -> User:
+    """要求管理员或经理权限"""
+    if user.role not in [UserRole.ADMIN, UserRole.MANAGER]:
+        raise HTTPException(status_code=403, detail="需要管理员或经理权限")
+    return user
+```
+
+**API 权限调整**：
+
+| 接口 | 原权限 | 新权限 | 说明 |
+|-----|-------|-------|-----|
+| `GET /api/admin/files` | `require_admin` | `_get_current_user` | 所有登录用户可查看 |
+| `GET /api/admin/files/{file_name}/preview` | `require_admin` | `_get_current_user` | 所有登录用户可预览 |
+| `GET /api/admin/files/{file_name}/download` | `require_admin` | `_get_current_user` | 所有登录用户可下载 |
+| `DELETE /api/admin/files/{file_name}` | `require_admin` | `require_manager_or_admin` | 仅管理员/经理可删除 |
+| `POST /api/admin/files/batch-delete` | `require_admin` | `require_manager_or_admin` | 仅管理员/经理可批量删除 |
+
+#### 2. 前端 UI 权限控制（`frontend/app/dashboard/knowledge/page.tsx`）
+
+**权限检查**：
+```typescript
+import { useAuthStore } from "@/store/authStore";
+import { hasPermission } from "@/lib/permissions";
+
+const { user } = useAuthStore();
+const canUpload = hasPermission(user, "canUpload");   // 技术员: false
+const canDelete = hasPermission(user, "canDelete");   // 技术员: false
+```
+
+**UI 元素条件渲染**：
+- ✅ 上传按钮：`{canUpload && <Button>上传文档</Button>}`
+- ✅ 批量删除按钮：`{canDelete && selectedDocs.size > 0 && <Button>删除选中</Button>}`
+- ✅ 勾选框列：`{canDelete && <TableHead><Checkbox /></TableHead>}`
+- ✅ 删除菜单项：`{canDelete && <DropdownMenuItem>删除</DropdownMenuItem>}`
+- ✅ 编辑/重新索引：`{canUpload && <DropdownMenuItem>编辑</DropdownMenuItem>}`
+
+#### 3. 权限配置（`frontend/lib/permissions.ts`）
+
+**技术员权限**：
+```typescript
+case "technician":
+  return {
+    canChat: true,
+    canUpload: false,          // ❌ 不能上传
+    canDownload: true,          // ✅ 可以下载
+    canDelete: false,           // ❌ 不能删除
+    canAccessKnowledge: true,   // ✅ 可以查看知识库
+    canAccessEquipment: true,
+    canAccessWorkflow: true,
+    // ...
+  };
+```
+
+#### 4. 验证步骤
+
+```bash
+# 1. 以技术员身份登录
+# URL: http://localhost:3000/login
+# 用户名: technician
+# 密码: tech123
+
+# 2. 访问知识库页面
+# URL: http://localhost:3000/dashboard/knowledge
+
+# 预期结果：
+# ✅ 能看到文档列表
+# ✅ 能预览文档（点击"预览"按钮）
+# ✅ 能下载文档（点击"下载"按钮）
+# ❌ 看不到"上传文档"按钮
+# ❌ 看不到"批量删除"按钮
+# ❌ 看不到勾选框列
+# ❌ 下拉菜单中没有"删除"、"编辑"、"重新索引"选项
+# ✅ 下拉菜单中只有"预览"和"下载"选项
+```
+
+#### 5. 技术细节
+
+**类型定义修复**：
+- 统一 `User` 类型定义（`frontend/lib/types/user.ts` 和 `api.ts`）
+- 将 `role: string` 改为 `role: UserRoleType`（联合类型）
+- 修复 TypeScript 类型不兼容错误
+
+**日志改进**：
+```python
+# 后端日志记录用户角色
+logger.info(f"File {file_name} downloaded by {current_user.username} ({current_user.role})")
+```
 
 ### 用户聊天记录隔离
 
@@ -360,7 +465,21 @@ python scripts/init_steel_knowledge_graph.py
 - 更新方式：重新运行 `init_steel_knowledge_graph.py` 重建知识图谱
 - 📚 **详细文档**: 查看 `docs/KNOWLEDGE_GRAPH_GUIDE.md` 了解完整使用说明
 
-**为什么 Agent 返回文字描述而非可视化图谱？**
+**知识图谱 Web 界面（已实现 ✅）**：
+- **访问路径**: `http://localhost:3000/dashboard/knowledge-graph`
+- **入口位置**: 知识库页面右上角"知识图谱"按钮
+- **权限控制**:
+  - 所有角色可以查看知识图谱和搜索实体
+  - 管理员和经理可以重新构建知识图谱
+  - 技术员仅查看权限
+- **功能特性**:
+  - 📊 统计仪表板：实体数量、关系数量、类型分布
+  - 🔍 实体搜索：支持按名称和类型过滤
+  - 📋 列表视图：查看实体详情、置信度
+  - 🎨 图谱视图：可视化展示（开发中）
+  - 🔄 一键重建：管理员可从文档重新构建图谱
+
+**为什么 Agent 返回文字描述？**
 - Agent 的职责是回答问题（后端），不是渲染 UI（前端）
 - 知识图谱可视化需要前端页面（D3.js/Cytoscape.js）
 - Agent 通过 `KnowledgeGraphQueryTool` 查询数据，然后生成文字回答
@@ -2941,7 +3060,46 @@ frontend/
 - 🆕 **Quality Issue Diagnosis**: Agent analyzes quality problems by correlating parameters with defect patterns
 - 🆕 **Energy Efficiency Advisor**: Identify energy-intensive stages and suggest optimizations
 
-#### 7. Admin Panel
+#### 7. Environment Monitoring & Energy Management
+- 🌱 **Real-time Environmental Metrics**: Monitor CO₂ emissions, energy consumption, water usage, waste recycling rate
+- ⚡ **Energy Consumption Tracking**: Track energy usage by equipment and production stage
+- 💧 **Water Resource Management**: Monitor water consumption and recycling efficiency
+- ♻️ **Waste Management**: Track waste recycling rate and disposal compliance
+- 📊 **Emission Monitoring**: Real-time monitoring of air quality parameters (smoke, dust, COD, noise)
+- ✅ **Compliance Checking**: Track environmental permits, certifications, and regulatory compliance status
+- 🎯 **AI-powered Optimization Suggestions**: Intelligent recommendations for energy saving and emission reduction
+- 📈 **Trend Analysis**: Historical trends and comparative analysis of environmental metrics
+- 🔔 **Alert System**: Automatic alerts when parameters exceed regulatory thresholds
+- 📋 **Compliance Reports**: Auto-generate environmental reports for regulatory submissions
+
+**🎭 Demo Mode (current implementation)**:
+- 📊 **Simulated Metrics**: Display realistic environmental data for demonstration
+- 🎯 **Optimization Suggestions**: AI-generated energy-saving and emission reduction recommendations
+- ✅ **Compliance Dashboard**: View environmental permits and certification status
+- 📈 **Performance Cards**: Energy consumption, CO₂ emissions, water usage, recycling rate with trend indicators
+
+**🔮 Future Enhancements**:
+- 🔌 **Real-time Data Integration**: Connect to environmental monitoring equipment and sensors
+- 📊 **Advanced Analytics**: Predictive modeling for emissions and energy consumption trends
+- 🌍 **Carbon Footprint Tracking**: Comprehensive carbon accounting and offset management
+- 📱 **Mobile Alerts**: Real-time push notifications for environmental threshold breaches
+- 🤖 **AI Optimization Engine**: Machine learning-based recommendations for energy efficiency
+- 📈 **Benchmarking**: Compare environmental performance against industry standards
+
+**👥 Role-based Access**:
+- **Admin**: Full access to all features, system configuration, data export
+- **Manager**: View metrics, optimization suggestions, compliance status, energy analysis
+- **Technician**: Read-only access (not available)
+
+**🔗 Agent Integration**:
+- 💬 **Environment Expert Agent**: Dedicated AI assistant for environmental and energy optimization queries
+- 🎯 **Query Examples**:
+  - "How can we reduce energy consumption in our heating furnaces?"
+  - "What are the latest emission standards for steel production?"
+  - "Analyze our water recycling efficiency trends"
+  - "Generate a monthly environmental compliance report"
+
+#### 8. Admin Panel
 - 👥 User management (CRUD)
 - 🔐 Permission configuration
 - 📊 System usage statistics (chat volume, upload frequency, top queries)

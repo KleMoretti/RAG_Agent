@@ -96,9 +96,10 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
             setUser(updatedUser);
             
             toast.success("用户信息更新成功");
-        } catch (error: any) {
-            const errorMessage =
-                error?.response?.data?.detail || "更新失败，请稍后重试";
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error 
+                ? error.message 
+                : (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "更新失败，请稍后重试";
             toast.error(errorMessage);
             console.error("Profile update error:", error);
         }
@@ -119,9 +120,10 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
             setTimeout(() => {
                 onOpenChange(false);
             }, 1500);
-        } catch (error: any) {
-            const errorMessage =
-                error?.response?.data?.detail || "密码修改失败，请检查当前密码是否正确";
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error 
+                ? error.message 
+                : (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "密码修改失败，请检查当前密码是否正确";
             toast.error(errorMessage);
             console.error("Password change error:", error);
         }
@@ -177,7 +179,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                                 <FormField
                                     control={profileForm.control}
                                     name="username"
-                                    render={({ field }: { field: any }) => (
+                                    render={({ field }) => (
                                         <FormItem>
                                             <FormLabel>用户名</FormLabel>
                                             <FormControl>
@@ -197,7 +199,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                                 <FormField
                                     control={profileForm.control}
                                     name="email"
-                                    render={({ field }: { field: any }) => (
+                                    render={({ field }) => (
                                         <FormItem>
                                             <FormLabel>邮箱地址（可选）</FormLabel>
                                             <FormControl>
@@ -256,7 +258,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                                 <FormField
                                     control={passwordForm.control}
                                     name="currentPassword"
-                                    render={({ field }: { field: any }) => (
+                                    render={({ field }) => (
                                         <FormItem>
                                             <FormLabel>当前密码</FormLabel>
                                             <FormControl>
@@ -274,7 +276,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                                 <FormField
                                     control={passwordForm.control}
                                     name="newPassword"
-                                    render={({ field }: { field: any }) => (
+                                    render={({ field }) => (
                                         <FormItem>
                                             <FormLabel>新密码</FormLabel>
                                             <FormControl>
@@ -295,7 +297,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                                 <FormField
                                     control={passwordForm.control}
                                     name="confirmPassword"
-                                    render={({ field }: { field: any }) => (
+                                    render={({ field }) => (
                                         <FormItem>
                                             <FormLabel>确认新密码</FormLabel>
                                             <FormControl>

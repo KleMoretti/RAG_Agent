@@ -33,6 +33,7 @@ import {
     Trash2,
     Loader2,
     AlertCircle,
+    LucideIcon,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -60,7 +61,7 @@ import { SettingsDialog } from "@/components/shared/SettingsDialog";
 import { PreferencesDialog } from "@/components/shared/PreferencesDialog";
 
 // 默认图标映射（用于向后兼容）
-const defaultIcons: Record<string, any> = {
+const defaultIcons: Record<string, LucideIcon> = {
     general: Bot,
     process: FlaskConical,
     equipment: Wrench,
@@ -70,9 +71,9 @@ const defaultIcons: Record<string, any> = {
 };
 
 // 获取Agent图标
-const getAgentIcon = (agent: AgentWithMetadata) => {
+const getAgentIcon = (agent: AgentWithMetadata): LucideIcon => {
     if (agent.iconComponent) {
-        return agent.iconComponent;
+        return agent.iconComponent as LucideIcon;
     }
     return defaultIcons[agent.name] || Bot;
 };
@@ -190,7 +191,7 @@ export function AppSidebar() {
     const [hoveredAgent, setHoveredAgent] = React.useState<{
         id: string;
         name: string;
-        icon: any;
+        icon: LucideIcon;
         color: string;
         description: string;
     } | null>(null);
