@@ -71,6 +71,17 @@ export default function KnowledgeGraphPage() {
         enabled: searchQuery.length > 0,
     });
 
+    // 构造用于图谱的搜索结果
+    const graphSearchResults = searchResults?.entities.map(entity => ({
+        id: entity.id,
+        label: entity.name,
+        type: entity.entity_type,
+        description: entity.description,
+        confidence: entity.confidence,
+        properties: entity.properties,
+        matched: true,
+    }));
+
     // 构建知识图谱
     const buildMutation = useMutation({
         mutationFn: buildKnowledgeGraph,
@@ -306,8 +317,9 @@ export default function KnowledgeGraphPage() {
                         <CardContent className="p-6">
                             {viewMode === "graph" ? (
                                 <KnowledgeGraphVisualization
-                                    searchResults={searchResults?.entities || []}
+                                    searchResults={graphSearchResults}
                                     isSearching={isSearching}
+                                    searchQuery={searchQuery}
                                 />
                             ) : (
                                 <EntityListView

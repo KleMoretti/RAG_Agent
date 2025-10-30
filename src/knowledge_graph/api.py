@@ -25,6 +25,34 @@ router = APIRouter(prefix="/api/knowledge-graph", tags=["knowledge-graph"])
 knowledge_graph_builder = SteelKnowledgeGraphBuilder()
 knowledge_graph_query = None
 
+# 启动时自动加载已保存的知识图谱
+def _initialize_knowledge_graph():
+    """初始化知识图谱：自动加载已保存的数据"""
+    global knowledge_graph_builder, knowledge_graph_query
+    from pathlib import Path
+    
+    kg_file = Path("./data/knowledge_graph.json")
+    if kg_file.exists():
+        try:
+            logger.info(f"正在加载知识图谱: {kg_file}")
+            knowledge_graph_builder.load_from_file(str(kg_file))
+            knowledge_graph_query = SteelKnowledgeGraphQuery(knowledge_graph_builder.knowledge_graph)
+            
+            # 输出统计信息
+            stats = knowledge_graph_builder.get_statistics()
+            logger.info(
+                f"✅ 知识图谱已加载: {stats['total_entities']} 个实体, "
+                f"{stats['total_relations']} 个关系"
+            )
+        except Exception as e:
+            logger.error(f"❌ 加载知识图谱失败: {e}")
+            logger.info("将使用空的知识图谱")
+    else:
+        logger.info(f"未找到知识图谱文件 ({kg_file})，将在首次构建时创建")
+
+# 立即初始化
+_initialize_knowledge_graph()
+
 
 class EntitySearchRequest(BaseModel):
     """实体搜索请求"""
@@ -514,6 +542,176 @@ async def get_relation_types(
     
     except Exception as e:
         logger.error(f"Error getting relation types: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/graph-data")
+async def get_graph_visualization_data(
+    entity_types: Optional[str] = Query(None, description="实体类型过滤（逗号分隔）"),
+    limit: int = Query(100, description="最大节点数量"),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    获取知识图谱可视化数据（nodes + edges 格式）
+    用于前端图谱渲染
+    """
+    try:
+        query_engine = get_knowledge_graph_query()
+        kg = knowledge_graph_builder.knowledge_graph
+        
+        # 过滤实体类型
+        entity_type_filters = None
+        if entity_types:
+            entity_type_filters = [SteelEntityType(et.strip()) for et in entity_types.split(',')]
+        
+        # 获取实体
+        all_entities = []
+        if entity_type_filters:
+            for etype in entity_type_filters:
+                all_entities.extend(kg.get_entities_by_type(etype))
+        else:
+            all_entities = list(kg.entities.values())
+        
+        # 限制数量
+        entities = all_entities[:limit]
+        entity_ids = {e.id for e in entities}
+        
+        # 构建节点数据
+        nodes = []
+        for entity in entities:
+            node = {
+                "id": entity.id,
+                "label": entity.name,
+                "type": entity.entity_type.value,
+                "description": entity.description,
+                "confidence": entity.confidence,
+                "properties": entity.properties,
+            }
+            nodes.append(node)
+        
+        # 获取这些实体之间的关系（边）
+        edges = []
+        for relation in kg.relations.values():
+            if relation.source_id in entity_ids and relation.target_id in entity_ids:
+                edge = {
+                    "id": relation.id,
+                    "source": relation.source_id,
+                    "target": relation.target_id,
+                    "type": relation.relation_type.value,
+                    "label": relation.relation_type.value,
+                    "confidence": relation.confidence,
+                    "properties": relation.properties,
+                }
+                edges.append(edge)
+        
+        return {
+            "nodes": nodes,
+            "edges": edges,
+            "total_nodes": len(nodes),
+            "total_edges": len(edges),
+            "available_types": list(set(e.entity_type.value for e in all_entities))
+        }
+    
+    except Exception as e:
+        logger.error(f"Error getting graph visualization data: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/search/graph-data")
+async def search_graph_visualization_data(
+    request: EntitySearchRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    根据搜索条件获取知识图谱可视化数据
+    返回搜索结果实体及其关系
+    """
+    try:
+        query_engine = get_knowledge_graph_query()
+        kg = knowledge_graph_builder.knowledge_graph
+        
+        # 转换实体类型
+        entity_types = None
+        if request.entity_types:
+            entity_types = [SteelEntityType(et) for et in request.entity_types]
+        
+        # 搜索实体
+        result = query_engine.search_entities(
+            query=request.query,
+            entity_types=entity_types,
+            min_confidence=request.min_confidence,
+            limit=request.limit
+        )
+        
+        entities = result.entities
+        entity_ids = {e.id for e in entities}
+        
+        # 构建节点
+        nodes = []
+        for entity in entities:
+            node = {
+                "id": entity.id,
+                "label": entity.name,
+                "type": entity.entity_type.value,
+                "description": entity.description,
+                "confidence": entity.confidence,
+                "properties": entity.properties,
+                "matched": True,  # 标记为搜索匹配的节点
+            }
+            nodes.append(node)
+        
+        # 获取相关实体和关系
+        related_entity_ids = set()
+        edges = []
+        
+        for entity in entities:
+            # 获取实体的所有关系
+            relations = kg.get_entity_relations(entity.id)
+            for relation in relations:
+                # 添加关系边
+                if relation.source_id in entity_ids or relation.target_id in entity_ids:
+                    edge = {
+                        "id": relation.id,
+                        "source": relation.source_id,
+                        "target": relation.target_id,
+                        "type": relation.relation_type.value,
+                        "label": relation.relation_type.value,
+                        "confidence": relation.confidence,
+                        "properties": relation.properties,
+                    }
+                    edges.append(edge)
+                    
+                    # 收集相关实体
+                    if relation.source_id not in entity_ids:
+                        related_entity_ids.add(relation.source_id)
+                    if relation.target_id not in entity_ids:
+                        related_entity_ids.add(relation.target_id)
+        
+        # 添加相关实体节点（一跳关系）
+        for related_id in related_entity_ids:
+            if related_id in kg.entities:
+                related_entity = kg.entities[related_id]
+                node = {
+                    "id": related_entity.id,
+                    "label": related_entity.name,
+                    "type": related_entity.entity_type.value,
+                    "description": related_entity.description,
+                    "confidence": related_entity.confidence,
+                    "properties": related_entity.properties,
+                    "matched": False,  # 非直接匹配的节点
+                }
+                nodes.append(node)
+        
+        return {
+            "nodes": nodes,
+            "edges": edges,
+            "total_nodes": len(nodes),
+            "total_edges": len(edges),
+            "matched_count": result.total_count,
+        }
+    
+    except Exception as e:
+        logger.error(f"Error searching graph visualization data: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

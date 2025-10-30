@@ -437,54 +437,179 @@ logger.info(f"File {file_name} downloaded by {current_user.username} ({current_u
 - 💡 未来可添加：跨设备同步、云端备份、聊天记录导出等功能
 ```
 
-### Knowledge Graph Management
+### Knowledge Graph Management (知识图谱管理)
+
+**✨ v2.0 重大更新 (2025-10-30)**：
+- ✅ **增强关系提取**：支持 15+ 种关系类型（contains, produced_by, used_in, complies_with, improves 等）
+- ✅ **React Flow 可视化**：交互式图谱展示，支持缩放、拖拽、高亮搜索结果
+- ✅ **实体详情面板**：点击节点查看完整信息、属性、关系
+- ✅ **智能搜索**：搜索匹配节点 + 一跳关系节点自动扩展
+- ✅ **多视图切换**：图谱视图 + 列表视图
+- ✅ **全屏模式**：支持全屏展示大型图谱
+- ✅ **节点样式优化**：按实体类型区分颜色，置信度动画
+
+#### 快速开始
+
 ```bash
-# 知识图谱构建（从上传的文档自动提取实体和关系）
+# 1. 构建知识图谱（从上传的文档自动提取实体和关系）
 python scripts/init_steel_knowledge_graph.py
 
-# 知识图谱查询（通过 Agent 工具）
-# Agent 会自动使用 KnowledgeGraphQueryTool 查询知识图谱
-# 支持的查询类型：
-# - statistics: 获取知识图谱统计信息（实体数量、关系数量等）
-# - search: 搜索实体（模糊匹配）
-# - properties: 查询实体属性
-# - relationships: 查询实体关系
-# - similar: 查询相似实体
-# - steel_composition: 查询钢种成分
+# 2. 访问 Web 界面
+http://localhost:3000/dashboard/knowledge-graph
 
-# 知识图谱 API 端点
-# GET /api/knowledge-graph/statistics         - 获取统计信息
-# POST /api/knowledge-graph/search/entities   - 搜索实体
-# GET /api/knowledge-graph/entities/{id}      - 获取实体详情
-# POST /api/knowledge-graph/entities/{id}/related - 获取相关实体
+# 3. 点击"重新构建图谱"按钮（管理员/经理）
+# 4. 在搜索框中输入关键词（如 "Q235"、"热轧"、"抗拉强度"）
+# 5. 点击节点查看详情
 ```
 
-**知识图谱数据位置**：
+#### 知识图谱 API 端点
+
+**图谱可视化**：
+```bash
+# 获取图谱可视化数据（nodes + edges 格式）
+GET /api/knowledge-graph/graph-data?entity_types=steel_grade,process&limit=100
+
+# 搜索图谱数据（返回匹配节点 + 一跳关系）
+POST /api/knowledge-graph/search/graph-data
+Content-Type: application/json
+{
+  "query": "Q235",
+  "entity_types": ["steel_grade"],
+  "limit": 50
+}
+```
+
+**实体查询**：
+```bash
+# 获取统计信息
+GET /api/knowledge-graph/statistics
+
+# 搜索实体
+POST /api/knowledge-graph/search/entities
+
+# 获取实体详情
+GET /api/knowledge-graph/entities/{id}
+GET /api/knowledge-graph/entities/name/{name}
+
+# 获取相关实体
+POST /api/knowledge-graph/entities/{id}/related
+```
+
+**管理操作**：
+```bash
+# 构建/重建知识图谱（管理员/经理）
+POST /api/knowledge-graph/build
+```
+
+#### 知识图谱 Web 界面（已完全实现 ✅）
+
+**访问路径**: `http://localhost:3000/dashboard/knowledge-graph`  
+**入口位置**: 知识库页面右上角"知识图谱"按钮
+
+**核心功能**:
+
+1. **📊 统计仪表板**
+   - 总实体数、总关系数
+   - 实体类型分布、关系类型分布
+   - 数据状态监控
+
+2. **🔍 智能搜索**
+   - 实时搜索，显示结果数量
+   - 按实体类型过滤
+   - 搜索结果高亮显示（实心节点 + 发光效果）
+   - 自动加载一跳关系节点
+
+3. **🎨 交互式图谱视图**
+   - **节点交互**：
+     - 鼠标滚轮缩放
+     - 拖拽画布移动
+     - 点击节点查看详情
+   - **节点样式**：
+     - 按实体类型区分颜色（15+ 种类型）
+     - 搜索匹配节点：实心填充 + 发光
+     - 普通节点：空心边框
+   - **关系展示**：
+     - 箭头显示方向
+     - 边标签显示关系类型
+     - 高置信度关系（>80%）显示流动动画
+     - 边粗细反映置信度
+   - **控制面板**：
+     - 缩放控制（+ / -）
+     - 小地图（右下角）
+     - 全屏模式切换
+     - 统计信息实时显示
+
+4. **📋 实体详情面板**（点击节点打开）
+   - 实体名称、类型、描述
+   - 置信度可视化进度条
+   - 属性列表（source、context、first_mentioned 等）
+   - 搜索匹配标记
+
+5. **📝 列表视图**
+   - 表格形式查看所有实体
+   - 按类型、置信度排序
+   - 支持快速浏览
+
+6. **🔄 一键重建**
+   - 管理员和经理可重新构建图谱
+   - 显示构建进度和结果统计
+
+**权限控制**:
+| 操作 | ADMIN | MANAGER | TECHNICIAN |
+|-----|-------|---------|------------|
+| 查看图谱 | ✅ | ✅ | ✅ |
+| 搜索实体 | ✅ | ✅ | ✅ |
+| 查看详情 | ✅ | ✅ | ✅ |
+| 构建图谱 | ✅ | ✅ | ❌ |
+
+**数据存储**：
 - 数据文件：`data/knowledge_graph.json`（~6MB，6669+ 实体）
 - 自动加载：Agent 启动时自动加载知识图谱
-- 更新方式：重新运行 `init_steel_knowledge_graph.py` 重建知识图谱
-- 📚 **详细文档**: 查看 `docs/KNOWLEDGE_GRAPH_GUIDE.md` 了解完整使用说明
+- 更新方式：重新运行 `init_steel_knowledge_graph.py` 或点击 Web 界面"重新构建图谱"
 
-**知识图谱 Web 界面（已实现 ✅）**：
-- **访问路径**: `http://localhost:3000/dashboard/knowledge-graph`
-- **入口位置**: 知识库页面右上角"知识图谱"按钮
-- **权限控制**:
-  - 所有角色可以查看知识图谱和搜索实体
-  - 管理员和经理可以重新构建知识图谱
-  - 技术员仅查看权限
-- **功能特性**:
-  - 📊 统计仪表板：实体数量、关系数量、类型分布
-  - 🔍 实体搜索：支持按名称和类型过滤
-  - 📋 列表视图：查看实体详情、置信度
-  - 🎨 图谱视图：可视化展示（开发中）
-  - 🔄 一键重建：管理员可从文档重新构建图谱
+**Agent 集成**：
+- Agent 通过 `KnowledgeGraphQueryTool` 查询知识图谱
+- 支持查询类型：statistics, search, properties, relationships, similar, steel_composition
+- 示例查询：
+  ```python
+  tool.execute(query_type="search", query="Q235")
+  tool.execute(query_type="steel_composition", steel_grade="Q235")
+  ```
 
-**为什么 Agent 返回文字描述？**
-- Agent 的职责是回答问题（后端），不是渲染 UI（前端）
-- 知识图谱可视化需要前端页面（D3.js/Cytoscape.js）
-- Agent 通过 `KnowledgeGraphQueryTool` 查询数据，然后生成文字回答
-- ✅ 后端已实现：API 接口 + Agent 工具
-- ⏳ 待开发：前端可视化页面（`/dashboard/knowledge-graph`）
+**📚 详细文档**:
+- **使用指南**: `docs/KNOWLEDGE_GRAPH_USAGE.md` - Web 界面使用说明
+- **技术指南**: `docs/KNOWLEDGE_GRAPH_GUIDE.md` - 技术实现细节
+- **API 文档**: 本文档 - 完整 API 参考
+
+**🎯 使用示例**:
+
+```bash
+# 1. 搜索钢种 Q235
+在搜索框输入 "Q235"
+→ 图谱显示 Q235 节点（蓝色实心）+ 相关实体（成分、性能、应用）
+
+# 2. 查看实体详情
+点击 Q235 节点
+→ 右侧面板显示：
+  - 名称：Q235
+  - 类型：steel_grade
+  - 描述：碳素结构钢
+  - 置信度：95%
+  - 属性：source=文档名, context=上下文片段
+
+# 3. 探索关系
+观察连线：
+  - Q235 → 碳（contains，包含碳元素）
+  - Q235 → 抗拉强度（has_property，具有抗拉强度性能）
+  - Q235 → 建筑结构（used_in，用于建筑结构）
+  - Q235 → GB/T 700（complies_with，符合 GB/T 700 标准）
+```
+
+**🚀 技术亮点**:
+- **前端**: React Flow + TanStack Query + Zustand
+- **后端**: FastAPI + SQLAlchemy + 正则表达式 NER
+- **数据格式**: JSON（nodes + edges）
+- **性能优化**: 节点限制（默认 100）、懒加载、虚拟化滚动
 
 ---
 

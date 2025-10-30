@@ -44,19 +44,33 @@ export interface SearchEntitiesResponse {
     total_count: number;
 }
 
+export interface GraphNode {
+    id: string;
+    label: string;
+    type: string;
+    description?: string;
+    confidence?: number;
+    properties?: Record<string, any>;
+    matched?: boolean;  // 搜索匹配的节点
+}
+
+export interface GraphEdge {
+    id: string;
+    source: string;
+    target: string;
+    type: string;
+    label: string;
+    confidence?: number;
+    properties?: Record<string, any>;
+}
+
 export interface GraphData {
-    nodes: Array<{
-        id: string;
-        name: string;
-        type: string;
-        properties?: Record<string, any>;
-    }>;
-    edges: Array<{
-        source: string;
-        target: string;
-        type: string;
-        properties?: Record<string, any>;
-    }>;
+    nodes: GraphNode[];
+    edges: GraphEdge[];
+    total_nodes: number;
+    total_edges: number;
+    available_types?: string[];
+    matched_count?: number;
 }
 
 export interface BuildGraphResponse {
@@ -177,6 +191,38 @@ export async function getSteelApplications(steelGrade: string): Promise<{
     const response = await apiClient.post('/api/knowledge-graph/steel-grades/applications', {
         steel_grade: steelGrade,
     });
+    return response.data;
+}
+
+/**
+ * 获取知识图谱可视化数据（全量或按类型过滤）
+ */
+export async function getGraphVisualizationData(
+    entityTypes?: string[],
+    limit: number = 100
+): Promise<GraphData> {
+    const params = new URLSearchParams();
+    if (entityTypes && entityTypes.length > 0) {
+        params.append('entity_types', entityTypes.join(','));
+    }
+    params.append('limit', limit.toString());
+
+    const response = await apiClient.get<GraphData>(
+        `/api/knowledge-graph/graph-data?${params.toString()}`
+    );
+    return response.data;
+}
+
+/**
+ * 根据搜索条件获取知识图谱可视化数据
+ */
+export async function searchGraphVisualizationData(
+    params: SearchEntitiesRequest
+): Promise<GraphData> {
+    const response = await apiClient.post<GraphData>(
+        '/api/knowledge-graph/search/graph-data',
+        params
+    );
     return response.data;
 }
 
