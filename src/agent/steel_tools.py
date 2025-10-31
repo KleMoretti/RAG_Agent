@@ -1058,6 +1058,15 @@ def register_steel_tools(agent) -> int:
         logger = logging.getLogger(__name__)
         logger.warning(f"市场查询工具加载失败: {e}")
     
+    # 添加训练数据查询工具
+    try:
+        from src.ml.training_data_tool import TrainingDataQueryTool
+        tools.append(TrainingDataQueryTool())
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"训练数据查询工具加载失败: {e}")
+    
     for tool in tools:
         agent.add_tool(tool)
     

@@ -27,12 +27,15 @@ class FaultDetector:
 
     def __init__(self, model_dir: Path | None = None):
         """初始化故障检测器"""
-        self.model_dir = model_dir or Path(cfg.data_dir) / "ml_models"
+        # 新的ML目录结构：data/ml/models/
+        project_root = Path(cfg.data_dir).parent 
+        self.model_dir = model_dir or project_root / "ml" / "models"
         self.model_dir.mkdir(parents=True, exist_ok=True)
         
         self.model: RandomForestClassifier | None = None
         self.feature_columns = ["temperature", "pressure", "vibration", "humidity"]
-        self.categorical_columns = ["equipment_type", "location"]
+        # 注意：CSV中的列名是 "equipment" 而不是 "equipment_type"
+        self.categorical_columns = ["equipment", "location"]
         self.model_version = "1.0.0"
         self.equipment_type_mapping: Dict[str, int] = {}
         
@@ -43,7 +46,7 @@ class FaultDetector:
         # 对分类特征进行编码
         for col in self.categorical_columns:
             if col in X.columns:
-                if not self.equipment_type_mapping and col == "equipment_type":
+                if not self.equipment_type_mapping and col == "equipment":
                     unique_types = X[col].unique()
                     self.equipment_type_mapping = {eq_type: idx for idx, eq_type in enumerate(unique_types)}
                     print(f"📋 设备类型映射: {self.equipment_type_mapping}")
@@ -70,10 +73,11 @@ class FaultDetector:
         print(f"✅ 加载完成: {len(df)} 条记录")
         
         # 分析设备类型分布
-        if 'equipment_type' in df.columns:
+        equipment_col = 'equipment' if 'equipment' in df.columns else 'equipment_type'
+        if equipment_col in df.columns:
             print(f"\n📋 设备类型分布:")
-            for eq_type in df['equipment_type'].unique():
-                eq_data = df[df['equipment_type'] == eq_type]
+            for eq_type in df[equipment_col].unique():
+                eq_data = df[df[equipment_col] == eq_type]
                 faulty_count = eq_data['faulty'].sum()
                 total = len(eq_data)
                 print(f"   {eq_type}: {total} 个样本, 故障: {faulty_count} ({faulty_count/total*100:.1f}%)")
