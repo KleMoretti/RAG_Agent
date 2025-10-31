@@ -417,50 +417,72 @@ def list_files(
         from pathlib import Path
         import os
 
-        # 获取文件目录 - 从 data/raw 读取原始文件
-        files_dir = Path("data/raw")
-        if not files_dir.exists():
-            return FileListResponse(
-                data=[],
-                meta={"total": 0, "page": page, "pageSize": page_size, "totalPages": 0},
-            )
-
+        # 获取文件目录 - 支持双向量存储架构
+        kb_raw_dir = Path("data/knowledge_base/raw")
+        user_raw_dir = Path("data/user_uploads/raw")
+        
         # 获取所有文件
         all_files = []
-        processed_dir = Path("data/processed")
-
-        for file_path in files_dir.glob("*"):
-            if file_path.is_file():
-                stat = file_path.stat()
-
-                # 检查是否已处理（存在对应的 .done 文件）
-                file_id = file_path.name
-                done_marker = processed_dir / f"{file_id}.done"
-                is_processed = done_marker.exists()
-
-                # 尝试获取原始文件名（从 file_id 中提取）
-                # file_id 格式: {hash}_{original_name}
-                display_name = file_id
-                if "_" in file_id:
-                    # 移除前缀哈希
-                    parts = file_id.split("_", 1)
-                    if len(parts) == 2:
-                        display_name = parts[1]
-
-                import uuid
-
-                all_files.append(
-                    FileInfo(
-                        id=file_id,  # 使用实际文件名作为ID，便于后续操作
-                        fileName=display_name,
-                        fileSize=stat.st_size,
-                        uploadDate=datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                        uploaderName="系统",  # 暂时无法获取上传者信息
-                        filePath=str(file_path),
-                        isProcessed=is_processed,
-                        chunkCount=None,
+        
+        # 处理知识库文件
+        if kb_raw_dir.exists():
+            kb_processed_dir = Path("data/knowledge_base/processed")
+            for file_path in kb_raw_dir.glob("*"):
+                if file_path.is_file():
+                    stat = file_path.stat()
+                    file_id = file_path.name
+                    done_marker = kb_processed_dir / f"{file_id}.done"
+                    is_processed = done_marker.exists()
+                    
+                    # 提取显示名称
+                    display_name = file_id
+                    if "_" in file_id:
+                        parts = file_id.split("_", 1)
+                        if len(parts) == 2:
+                            display_name = parts[1]
+                    
+                    all_files.append(
+                        FileInfo(
+                            id=f"kb:{file_id}",  # 添加前缀标识知识库文件
+                            fileName=display_name,
+                            fileSize=stat.st_size,
+                            uploadDate=datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                            uploaderName="知识库",
+                            filePath=str(file_path),
+                            isProcessed=is_processed,
+                            chunkCount=None,
+                        )
                     )
-                )
+        
+        # 处理用户上传文件
+        if user_raw_dir.exists():
+            user_processed_dir = Path("data/user_uploads/processed")
+            for file_path in user_raw_dir.glob("*"):
+                if file_path.is_file():
+                    stat = file_path.stat()
+                    file_id = file_path.name
+                    done_marker = user_processed_dir / f"{file_id}.done"
+                    is_processed = done_marker.exists()
+                    
+                    # 提取显示名称
+                    display_name = file_id
+                    if "_" in file_id:
+                        parts = file_id.split("_", 1)
+                        if len(parts) == 2:
+                            display_name = parts[1]
+                    
+                    all_files.append(
+                        FileInfo(
+                            id=f"user:{file_id}",  # 添加前缀标识用户上传文件
+                            fileName=display_name,
+                            fileSize=stat.st_size,
+                            uploadDate=datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                            uploaderName="用户上传",
+                            filePath=str(file_path),
+                            isProcessed=is_processed,
+                            chunkCount=None,
+                        )
+                    )
 
         # 搜索过滤
         if search:
@@ -492,28 +514,43 @@ def list_files(
         raise HTTPException(status_code=500, detail="获取文件列表失败")
 
 
-@router.delete("/files/{file_name}")
+@router.delete("/files/{file_id:path}")
 def delete_file(
-    file_name: str, db: Session = Depends(get_db), admin: User = Depends(require_manager_or_admin)
+    file_id: str, db: Session = Depends(get_db), admin: User = Depends(require_manager_or_admin)
 ):
     """删除文件（需要管理员或经理权限）"""
     try:
         from pathlib import Path
         import os
 
+        # 解析文件ID (格式: kb:filename 或 user:filename)
+        if ":" not in file_id:
+            raise HTTPException(status_code=400, detail="无效的文件ID格式")
+        
+        prefix, file_name = file_id.split(":", 1)
+        
         # 安全验证文件名
         if ".." in file_name or "/" in file_name or "\\" in file_name:
             raise HTTPException(status_code=400, detail="无效的文件名")
+        
+        # 根据前缀确定目录
+        if prefix == "kb":
+            raw_dir = Path("data/knowledge_base/raw")
+            processed_dir = Path("data/knowledge_base/processed")
+        elif prefix == "user":
+            raw_dir = Path("data/user_uploads/raw")
+            processed_dir = Path("data/user_uploads/processed")
+        else:
+            raise HTTPException(status_code=400, detail="无效的文件ID前缀")
 
-        # 删除 data/raw 中的原始文件
-        raw_path = Path("data/raw") / file_name
+        # 删除原始文件
+        raw_path = raw_dir / file_name
         if not raw_path.exists():
             raise HTTPException(status_code=404, detail="文件不存在")
 
         raw_path.unlink()
 
-        # 删除 data/processed 中的相关文件
-        processed_dir = Path("data/processed")
+        # 删除处理文件
         chunks_file = processed_dir / f"{file_name}.chunks.jsonl"
         done_file = processed_dir / f"{file_name}.done"
 
@@ -523,14 +560,14 @@ def delete_file(
             done_file.unlink()
 
         logger.info(
-            f"File {file_name} and its processed files deleted by {admin.username} ({admin.role})"
+            f"File {file_id} and its processed files deleted by {admin.username} ({admin.role})"
         )
         return {"message": "文件删除成功"}
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error deleting file {file_name}: {e}")
+        logger.error(f"Error deleting file {file_id}: {e}")
         raise HTTPException(status_code=500, detail="删除文件失败")
 
 
@@ -547,23 +584,40 @@ def batch_delete_files(
         success = []
         failed = []
 
-        for file_name in request.fileNames:
+        for file_id in request.fileNames:
             try:
+                # 解析文件ID (格式: kb:filename 或 user:filename)
+                if ":" not in file_id:
+                    failed.append({"fileName": file_id, "reason": "无效的文件ID格式"})
+                    continue
+                
+                prefix, file_name = file_id.split(":", 1)
+                
                 # 安全验证文件名
                 if ".." in file_name or "/" in file_name or "\\" in file_name:
-                    failed.append({"fileName": file_name, "reason": "无效的文件名"})
+                    failed.append({"fileName": file_id, "reason": "无效的文件名"})
+                    continue
+                
+                # 根据前缀确定目录
+                if prefix == "kb":
+                    raw_dir = Path("data/knowledge_base/raw")
+                    processed_dir = Path("data/knowledge_base/processed")
+                elif prefix == "user":
+                    raw_dir = Path("data/user_uploads/raw")
+                    processed_dir = Path("data/user_uploads/processed")
+                else:
+                    failed.append({"fileName": file_id, "reason": "无效的文件ID前缀"})
                     continue
 
-                # 删除 data/raw 中的原始文件
-                raw_path = Path("data/raw") / file_name
+                # 删除原始文件
+                raw_path = raw_dir / file_name
                 if not raw_path.exists():
-                    failed.append({"fileName": file_name, "reason": "文件不存在"})
+                    failed.append({"fileName": file_id, "reason": "文件不存在"})
                     continue
 
                 raw_path.unlink()
 
-                # 删除 data/processed 中的相关文件
-                processed_dir = Path("data/processed")
+                # 删除处理文件
                 chunks_file = processed_dir / f"{file_name}.chunks.jsonl"
                 done_file = processed_dir / f"{file_name}.done"
 
@@ -572,14 +626,14 @@ def batch_delete_files(
                 if done_file.exists():
                     done_file.unlink()
 
-                success.append(file_name)
+                success.append(file_id)
                 logger.info(
-                    f"File {file_name} and its processed files deleted by {admin.username} ({admin.role})"
+                    f"File {file_id} and its processed files deleted by {admin.username} ({admin.role})"
                 )
 
             except Exception as e:
-                logger.error(f"Error deleting file {file_name}: {e}")
-                failed.append({"fileName": file_name, "reason": str(e)})
+                logger.error(f"Error deleting file {file_id}: {e}")
+                failed.append({"fileName": file_id, "reason": str(e)})
 
         return BatchDeleteResponse(
             success=success, failed=failed, total=len(request.fileNames)
@@ -590,20 +644,36 @@ def batch_delete_files(
         raise HTTPException(status_code=500, detail="批量删除失败")
 
 
-@router.get("/files/{file_name}/preview")
+@router.get("/files/{file_id:path}/preview")
 def preview_file(
-    file_name: str, db: Session = Depends(get_db), current_user: User = Depends(_get_current_user)
+    file_id: str, db: Session = Depends(get_db), current_user: User = Depends(_get_current_user)
 ):
     """预览文件内容（所有登录用户可查看）"""
     try:
         from pathlib import Path
 
+        # 解析文件ID (格式: kb:filename 或 user:filename)
+        if ":" not in file_id:
+            raise HTTPException(status_code=400, detail="无效的文件ID格式")
+        
+        prefix, file_name = file_id.split(":", 1)
+        
         # 安全验证文件名
         if ".." in file_name or "/" in file_name or "\\" in file_name:
             raise HTTPException(status_code=400, detail="无效的文件名")
+        
+        # 根据前缀确定目录
+        if prefix == "kb":
+            raw_dir = Path("data/knowledge_base/raw")
+            processed_dir = Path("data/knowledge_base/processed")
+        elif prefix == "user":
+            raw_dir = Path("data/user_uploads/raw")
+            processed_dir = Path("data/user_uploads/processed")
+        else:
+            raise HTTPException(status_code=400, detail="无效的文件ID前缀")
 
         # 读取原始文件
-        raw_path = Path("data/raw") / file_name
+        raw_path = raw_dir / file_name
         if not raw_path.exists():
             raise HTTPException(status_code=404, detail="文件不存在")
 
@@ -633,7 +703,6 @@ def preview_file(
                 )
 
         # 读取处理后的分块信息
-        processed_dir = Path("data/processed")
         chunks_file = processed_dir / f"{file_name}.chunks.jsonl"
         chunks = []
 
@@ -665,25 +734,39 @@ def preview_file(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error previewing file {file_name}: {e}")
+        logger.error(f"Error previewing file {file_id}: {e}")
         raise HTTPException(status_code=500, detail="预览文件失败")
 
 
-@router.get("/files/{file_name}/download")
+@router.get("/files/{file_id:path}/download")
 def download_file(
-    file_name: str, db: Session = Depends(get_db), current_user: User = Depends(_get_current_user)
+    file_id: str, db: Session = Depends(get_db), current_user: User = Depends(_get_current_user)
 ):
     """下载文件（所有登录用户可下载）"""
     try:
         from pathlib import Path
         from fastapi.responses import FileResponse
 
+        # 解析文件ID (格式: kb:filename 或 user:filename)
+        if ":" not in file_id:
+            raise HTTPException(status_code=400, detail="无效的文件ID格式")
+        
+        prefix, file_name = file_id.split(":", 1)
+        
         # 安全验证文件名
         if ".." in file_name or "/" in file_name or "\\" in file_name:
             raise HTTPException(status_code=400, detail="无效的文件名")
+        
+        # 根据前缀确定目录
+        if prefix == "kb":
+            raw_dir = Path("data/knowledge_base/raw")
+        elif prefix == "user":
+            raw_dir = Path("data/user_uploads/raw")
+        else:
+            raise HTTPException(status_code=400, detail="无效的文件ID前缀")
 
         # 读取原始文件
-        raw_path = Path("data/raw") / file_name
+        raw_path = raw_dir / file_name
         if not raw_path.exists():
             raise HTTPException(status_code=404, detail="文件不存在")
 
@@ -694,7 +777,7 @@ def download_file(
             if len(parts) == 2:
                 display_name = parts[1]
 
-        logger.info(f"File {file_name} downloaded by {current_user.username} ({current_user.role})")
+        logger.info(f"File {file_id} downloaded by {current_user.username} ({current_user.role})")
 
         return FileResponse(
             path=str(raw_path),
@@ -705,7 +788,7 @@ def download_file(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error downloading file {file_name}: {e}")
+        logger.error(f"Error downloading file {file_id}: {e}")
         raise HTTPException(status_code=500, detail="下载文件失败")
 
 

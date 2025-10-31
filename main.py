@@ -41,7 +41,9 @@ from src.data_processing.preprocessor import Preprocessor
 from src.data_processing.loader import DataLoader
 from src.data_processing.embedder import Embedder
 from src.retrieval.vector_store_fast import VectorStoreFast
+from src.retrieval.dual_vector_store import DualVectorStoreManager
 from src.vocabulary import VocabularyService, QueryEnhancer
+from config.settings import get_settings
 
 # Project data directories
 BASE_DIR = Path(__file__).parent
@@ -50,7 +52,18 @@ RAW_DIR = DATA_DIR / "raw"
 PROCESSED_DIR = DATA_DIR / "processed"
 EMBED_DIR = DATA_DIR / "embeddings"
 
-for _d in (RAW_DIR, PROCESSED_DIR, EMBED_DIR):
+# 读取配置
+_settings = get_settings()
+
+# 知识库目录
+KB_RAW_DIR = Path(_settings.knowledge_base_raw_dir)
+KB_PROCESSED_DIR = Path(_settings.knowledge_base_processed_dir)
+
+# 用户上传目录
+USER_RAW_DIR = Path(_settings.user_uploads_raw_dir)
+USER_PROCESSED_DIR = Path(_settings.user_uploads_processed_dir)
+
+for _d in (RAW_DIR, PROCESSED_DIR, EMBED_DIR, KB_RAW_DIR, KB_PROCESSED_DIR, USER_RAW_DIR, USER_PROCESSED_DIR):
     try:
         _d.mkdir(parents=True, exist_ok=True)
     except Exception:
@@ -76,6 +89,10 @@ def get_embedder() -> Embedder:
 
 @lru_cache(maxsize=1)
 def get_vector_store() -> VectorStoreFast:
+    """获取单一向量存储（向后兼容，已废弃）
+    
+    注意：新代码应使用 get_dual_vector_store() 以支持知识库和用户上传文件的隔离
+    """
     emb = get_embedder()
     index_path = EMBED_DIR / "index.faiss"
     meta_path = EMBED_DIR / "index.meta.jsonl"
@@ -90,6 +107,21 @@ def get_vector_store() -> VectorStoreFast:
         nlist=100,  # IVF聚类数
         m=8,  # PQ子向量数
         nbits=8,  # 每个子向量8位
+    )
+
+
+@lru_cache(maxsize=1)
+def get_dual_vector_store() -> DualVectorStoreManager:
+    """获取双向量存储管理器（知识库 + 用户上传）"""
+    emb = get_embedder()
+    settings = get_settings()
+    
+    return DualVectorStoreManager(
+        kb_index_path=settings.knowledge_base_index_path,
+        user_index_path=settings.user_uploads_index_path,
+        dim=emb.dim,
+        user_upload_score_threshold=settings.user_upload_score_threshold,
+        enable_priority_search=settings.enable_priority_search,
     )
 
 
@@ -167,12 +199,26 @@ def _text_from_file(
 
 
 def process_and_index_file(
-    saved_path: Path, file_id: str, orig_name: str, content_type: Optional[str]
+    saved_path: Path,
+    file_id: str,
+    orig_name: str,
+    content_type: Optional[str],
+    upload_type: str = "user_upload",  # "knowledge_base" 或 "user_upload"
+    processed_dir: Optional[Path] = None,
 ) -> List[Dict[str, Any]]:
     """
     Extract text, clean and chunk, persist processed chunks, and index into vector store.
 
-    Returns a list of {content, type, length} dicts for API preview.
+    Args:
+        saved_path: 保存的文件路径
+        file_id: 文件ID
+        orig_name: 原始文件名
+        content_type: 文件MIME类型
+        upload_type: 上传类型（knowledge_base 或 user_upload）
+        processed_dir: 处理后文件保存目录（可选）
+
+    Returns:
+        list of {content, type, length} dicts for API preview.
     """
     pre = get_preprocessor()
     text = _text_from_file(saved_path, orig_name, content_type)
@@ -183,8 +229,15 @@ def process_and_index_file(
     else:
         chunks = _chunk_text(cleaned, chunk_size=1000, overlap=150)
 
+    # 确定处理后文件保存目录
+    if processed_dir is None:
+        if upload_type == "knowledge_base":
+            processed_dir = KB_PROCESSED_DIR
+        else:
+            processed_dir = USER_PROCESSED_DIR
+
     # Persist processed chunks as JSONL for traceability
-    out_jsonl = PROCESSED_DIR / f"{file_id}.chunks.jsonl"
+    out_jsonl = processed_dir / f"{file_id}.chunks.jsonl"
     try:
         with out_jsonl.open("w", encoding="utf-8") as f:
             for i, c in enumerate(chunks):
@@ -198,6 +251,7 @@ def process_and_index_file(
                             "chunk_id": i,
                             "content": c,
                             "length": len(c),
+                            "upload_type": upload_type,  # 添加上传类型标记
                         },
                         ensure_ascii=False,
                     )
@@ -207,12 +261,12 @@ def process_and_index_file(
         # Don't fail upload if processed save encounters an error
         pass
 
-    # Build embeddings and add to persistent vector store
+    # Build embeddings and add to dual vector store
     if chunks:
         try:
             emb = get_embedder()
             vectors = emb.encode(chunks, normalize=True)
-            store = get_vector_store()
+            dual_store = get_dual_vector_store()
             metadatas = []
             import hashlib
 
@@ -225,13 +279,18 @@ def process_and_index_file(
                         "preview": c[:100],
                         "file_id": file_id,
                         "file_name": orig_name,
+                        "upload_type": upload_type,  # 添加上传类型标记
                     }
                 )
-            store.add(vectors, metadatas)
+            # 添加到对应的索引
+            dual_store.add(vectors, metadatas, store_type=upload_type)
             # Persist to disk
-            store.save()
-        except Exception:
+            dual_store.save(store_type=upload_type)
+            
+            print(f"✅ 已将 {len(chunks)} 个块索引到 {upload_type} 索引")
+        except Exception as e:
             # Embedding/indexing errors shouldn't fully break the upload
+            print(f"⚠️ 索引失败: {e}")
             pass
 
     # Prepare API preview chunks
@@ -304,9 +363,11 @@ def wrap_text(text: str, width: int) -> str:
 
 # --------------------------- FastAPI app --------------------------- #
 try:
-    from fastapi import FastAPI, UploadFile, File, HTTPException
+    from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
     from fastapi.middleware.cors import CORSMiddleware
     from pydantic import BaseModel
+    from src.api.models import User
+    from src.api.auth import _get_current_user
     import tempfile
     import mimetypes
     import hashlib
@@ -626,12 +687,40 @@ try:
             ]
 
     @app.post("/api/upload", response_model=FileUploadResponse)
-    async def upload_file(file: UploadFile = File(...)):
-        """上传文件，保存到 data/raw，并进行文本提取/分块，保存到 data/processed，且写入向量库。"""
-        # 注意：这里应该添加权限检查，但为了保持向后兼容，暂时注释
-        # from src.api.auth import require_permission
-        # user = require_permission("upload")()
+    async def upload_file(
+        file: UploadFile = File(...),
+        upload_type: str = "user_upload",  # "knowledge_base" 或 "user_upload"
+        current_user: User = Depends(_get_current_user),  # 添加用户认证
+    ):
+        """上传文件到知识库或用户临时目录
+        
+        Args:
+            file: 上传的文件
+            upload_type: 上传类型
+                - "knowledge_base": 上传到知识库（仅管理员/经理，持久化）
+                - "user_upload": 上传到用户临时目录（所有用户，默认）
+            current_user: 当前登录用户
+        
+        Returns:
+            FileUploadResponse with file details
+        """
         try:
+            # 验证 upload_type 参数
+            if upload_type not in ("knowledge_base", "user_upload"):
+                return FileUploadResponse(
+                    success=False,
+                    message=f"无效的 upload_type: {upload_type}，必须是 'knowledge_base' 或 'user_upload'",
+                )
+
+            # 权限检查：只有管理员和经理可以上传到知识库
+            if upload_type == "knowledge_base":
+                if current_user.role not in ("ADMIN", "MANAGER"):
+                    return FileUploadResponse(
+                        success=False,
+                        message="只有管理员和经理可以上传文件到知识库，普通用户只能上传到个人临时目录",
+                    )
+                print(f"👤 {current_user.username} (角色: {current_user.role}) 上传文件到知识库")
+
             # 读取文件内容
             content = await file.read()
             if not content:
@@ -642,11 +731,20 @@ try:
             safe_name = _safe_filename(file.filename or "upload")
             file_id = f"{file_hash}_{safe_name}"
 
-            # 保存到 data/raw
-            raw_path = RAW_DIR / file_id
+            # 根据 upload_type 选择保存目录
+            if upload_type == "knowledge_base":
+                raw_dir = KB_RAW_DIR
+                processed_dir = KB_PROCESSED_DIR
+            else:
+                raw_dir = USER_RAW_DIR
+                processed_dir = USER_PROCESSED_DIR
+
+            # 保存到对应的 raw 目录
+            raw_path = raw_dir / file_id
             try:
                 with raw_path.open("wb") as f:
                     f.write(content)
+                print(f"📁 文件保存到: {raw_path}")
             except Exception as e:
                 return FileUploadResponse(success=False, message=f"保存文件失败: {e}")
 
@@ -656,24 +754,30 @@ try:
                 file_id=file_id,
                 orig_name=file.filename,
                 content_type=file.content_type,
+                upload_type=upload_type,
+                processed_dir=processed_dir,
             )
 
             # 写一个轻量处理完成标记文件（可选）
             try:
-                (PROCESSED_DIR / f"{file_id}.done").write_text("ok", encoding="utf-8")
+                (processed_dir / f"{file_id}.done").write_text("ok", encoding="utf-8")
             except Exception:
                 pass
 
+            # 根据类型设置提示信息
+            location = "知识库" if upload_type == "knowledge_base" else "用户上传目录"
+            message = f"文件上传成功（{location}），已处理为 {len(preview_chunks)} 个块"
+
             return FileUploadResponse(
                 success=True,
-                message=f"文件上传成功，已处理为 {len(preview_chunks)} 个块",
+                message=message,
                 file_id=file_id,
                 file_name=file.filename,
                 file_size=len(content),
                 content_type=file.content_type,
                 chunks=preview_chunks,
                 raw_path=str(raw_path),
-                processed_path=str(PROCESSED_DIR / f"{file_id}.chunks.jsonl"),
+                processed_path=str(processed_dir / f"{file_id}.chunks.jsonl"),
             )
         except Exception as e:
             return FileUploadResponse(success=False, message=f"文件处理失败: {str(e)}")
@@ -739,14 +843,15 @@ try:
                     )
                     print(f"📝 增强查询: {query_for_search}")
 
-                # 2. 文本预处理和向量检索
+                # 2. 文本预处理和向量检索（优先检索策略）
                 pre = get_preprocessor()
                 cleaned_query = pre.clean_text(query_for_search)
                 if cleaned_query:
                     emb = get_embedder()
                     vec = emb.encode([cleaned_query], normalize=True)[0]
-                    store = get_vector_store()
-                    hits = store.search(vec, top_k=5, include_metadata=True)
+                    # 使用双向量存储管理器（优先搜索用户上传文件）
+                    dual_store = get_dual_vector_store()
+                    hits = dual_store.search(vec, top_k=5, include_metadata=True, nprobe=10)
 
                     # Load chunk contents from processed JSONL if available
                     contexts: list[str] = []
@@ -786,7 +891,14 @@ try:
                                 contexts.append(preview)
                             continue
 
-                        jsonl_path = PROCESSED_DIR / f"{file_id}.chunks.jsonl"
+                        # 根据 upload_type 确定从哪个目录读取
+                        upload_type = h.get("upload_type", "user_upload")
+                        if upload_type == "knowledge_base":
+                            processed_dir = KB_PROCESSED_DIR
+                        else:
+                            processed_dir = USER_PROCESSED_DIR
+
+                        jsonl_path = processed_dir / f"{file_id}.chunks.jsonl"
                         try:
                             if jsonl_path.exists():
                                 # Read only the needed line(s)
@@ -807,10 +919,30 @@ try:
                                                 contexts.append(content)
                                             break
                             else:
-                                # As a fallback, read from raw file and ignore precise chunking
-                                preview = h.get("preview")
-                                if isinstance(preview, str) and preview:
-                                    contexts.append(preview)
+                                # 尝试从旧的 PROCESSED_DIR 读取（向后兼容）
+                                old_jsonl_path = PROCESSED_DIR / f"{file_id}.chunks.jsonl"
+                                if old_jsonl_path.exists():
+                                    with old_jsonl_path.open("r", encoding="utf-8") as f:
+                                        for line in f:
+                                            line = line.strip()
+                                            if not line:
+                                                continue
+                                            import json as _json
+
+                                            try:
+                                                rec = _json.loads(line)
+                                            except Exception:
+                                                continue
+                                            if rec.get("chunk_id") == chunk_id:
+                                                content = rec.get("content")
+                                                if isinstance(content, str) and content:
+                                                    contexts.append(content)
+                                                break
+                                else:
+                                    # As a fallback, read from raw file and ignore precise chunking
+                                    preview = h.get("preview")
+                                    if isinstance(preview, str) and preview:
+                                        contexts.append(preview)
                         except Exception:
                             # Do not block chat on retrieval errors
                             prev = h.get("preview")
@@ -936,14 +1068,15 @@ try:
                                 f"🔍 [Stream] 识别到专业词汇: {[t['term'] for t in enhanced.identified_terms]}"
                             )
 
-                        # 1.2 文本预处理和向量检索
+                        # 1.2 文本预处理和向量检索（优先检索策略）
                         pre = get_preprocessor()
                         cleaned_query = pre.clean_text(query_for_search)
                         if cleaned_query:
                             emb = get_embedder()
                             vec = emb.encode([cleaned_query], normalize=True)[0]
-                            store = get_vector_store()
-                            hits = store.search(vec, top_k=5, include_metadata=True)
+                            # 使用双向量存储管理器（优先搜索用户上传文件）
+                            dual_store = get_dual_vector_store()
+                            hits = dual_store.search(vec, top_k=5, include_metadata=True, nprobe=10)
 
                             contexts = []
                             for h in hits:
@@ -988,12 +1121,17 @@ try:
                                     except Exception:
                                         pass
 
-                                # 尝试加载完整内容
+                                # 尝试加载完整内容（支持不同目录）
                                 content = ""
                                 if file_id is not None and chunk_id is not None:
-                                    jsonl_path = (
-                                        PROCESSED_DIR / f"{file_id}.chunks.jsonl"
-                                    )
+                                    # 根据 upload_type 确定从哪个目录读取
+                                    upload_type = h.get("upload_type", "user_upload")
+                                    if upload_type == "knowledge_base":
+                                        processed_dir = KB_PROCESSED_DIR
+                                    else:
+                                        processed_dir = USER_PROCESSED_DIR
+
+                                    jsonl_path = processed_dir / f"{file_id}.chunks.jsonl"
                                     try:
                                         if jsonl_path.exists():
                                             with jsonl_path.open(
@@ -1010,6 +1148,24 @@ try:
                                                     if rec.get("chunk_id") == chunk_id:
                                                         content = rec.get("content", "")
                                                         break
+                                        else:
+                                            # 尝试从旧的 PROCESSED_DIR 读取（向后兼容）
+                                            old_jsonl_path = PROCESSED_DIR / f"{file_id}.chunks.jsonl"
+                                            if old_jsonl_path.exists():
+                                                with old_jsonl_path.open(
+                                                    "r", encoding="utf-8"
+                                                ) as f:
+                                                    for line in f:
+                                                        line = line.strip()
+                                                        if not line:
+                                                            continue
+                                                        try:
+                                                            rec = json_lib.loads(line)
+                                                        except Exception:
+                                                            continue
+                                                        if rec.get("chunk_id") == chunk_id:
+                                                            content = rec.get("content", "")
+                                                            break
                                     except Exception:
                                         pass
 

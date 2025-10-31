@@ -12,6 +12,20 @@ class Settings(BaseSettings):
     max_chunk_tokens: int = 350
     chunk_overlap: int = 40
 
+    # 知识库文件存储（管理员维护的持久化知识）
+    knowledge_base_raw_dir: str = "./data/knowledge_base/raw"
+    knowledge_base_processed_dir: str = "./data/knowledge_base/processed"
+    knowledge_base_index_path: str = "./data/embeddings/knowledge_base.faiss"
+
+    # 用户上传文件存储（临时、个人文件）
+    user_uploads_raw_dir: str = "./data/user_uploads/raw"
+    user_uploads_processed_dir: str = "./data/user_uploads/processed"
+    user_uploads_index_path: str = "./data/embeddings/user_uploads.faiss"
+
+    # 检索优先级配置
+    user_upload_score_threshold: float = 0.7  # 用户上传文件相似度阈值
+    enable_priority_search: bool = True  # 是否启用优先检索
+
     # LLM configuration
     llm_model: str = "gpt-4o-mini"
     llm_timeout: float = 30.0
@@ -38,6 +52,18 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     s = Settings()
+    # 创建旧的目录（保持向后兼容）
     Path(s.data_dir).mkdir(parents=True, exist_ok=True)
     Path(s.vector_index_path).parent.mkdir(parents=True, exist_ok=True)
+    
+    # 创建知识库目录
+    Path(s.knowledge_base_raw_dir).mkdir(parents=True, exist_ok=True)
+    Path(s.knowledge_base_processed_dir).mkdir(parents=True, exist_ok=True)
+    Path(s.knowledge_base_index_path).parent.mkdir(parents=True, exist_ok=True)
+    
+    # 创建用户上传目录
+    Path(s.user_uploads_raw_dir).mkdir(parents=True, exist_ok=True)
+    Path(s.user_uploads_processed_dir).mkdir(parents=True, exist_ok=True)
+    Path(s.user_uploads_index_path).parent.mkdir(parents=True, exist_ok=True)
+    
     return s

@@ -67,6 +67,44 @@ python scripts/db_migrate.py status        # 查看数据库状态
 python scripts/db_migrate.py list          # 列出所有可用迁移
 ```
 
+### User Upload Isolation (用户上传文件隔离)
+```bash
+# 文件迁移（将旧文件迁移到知识库，首次运行后执行一次）
+python scripts/migrate_files_to_kb.py                    # 交互式迁移
+python scripts/migrate_files_to_kb.py --yes              # 自动确认
+python scripts/migrate_files_to_kb.py --dry-run          # 预览不执行
+python scripts/migrate_files_to_kb.py --target user_upload  # 迁移到用户上传目录
+
+# 查看向量存储状态
+python -c "from main import get_dual_vector_store; s=get_dual_vector_store(); print(f'知识库:{s.kb_size} 用户上传:{s.user_size}')"
+```
+
+**存储架构**：
+- `data/knowledge_base/` - 知识库（管理员/经理维护，持久化）
+- `data/user_uploads/` - 用户上传（所有用户，临时文件）
+- 双向量索引：`data/embeddings/{knowledge_base,user_uploads}.faiss`
+
+**上传权限**：
+| 操作 | ADMIN | MANAGER | TECHNICIAN |
+|-----|-------|---------|------------|
+| 上传到知识库 | ✅ | ✅ | ❌ |
+| 上传到临时目录 | ✅ | ✅ | ✅ |
+
+**检索优先级**：
+1. 先搜索用户上传文件（相似度>70%直接返回）
+2. 相似度不足时搜索知识库
+3. 合并结果（用户上传结果排在前面）
+
+**前端 UI**：
+- 管理员/经理：上传对话框显示"上传位置"选择器（知识库 / 临时上传）
+- 技术员：自动上传到临时目录，显示蓝色提示信息
+
+**配置项** (`config/settings.py`)：
+```python
+user_upload_score_threshold: float = 0.7  # 用户上传相似度阈值
+enable_priority_search: bool = True       # 启用优先检索
+```
+
 ### Test Users Management (测试用户管理)
 ```bash
 # 初始化测试用户账号（三种角色）
@@ -1333,7 +1371,35 @@ python scripts/mysteel_cli.py crawl --material 螺纹 --days 7 --headless false
 5. **统计分析**: 设备健康度、故障率、传感器数据趋势
 6. **模型训练**: 自定义模型训练和版本管理
 
+### 目录结构
+
+ML相关数据和模型使用独立的目录结构：
+
+```
+data/ml/
+├── training_data/      # 训练数据（CSV格式）
+│   ├── equipment_anomaly_data.csv
+│   └── README.md
+├── raw_data/           # 原始传感器数据
+│   └── README.md
+└── models/             # 训练好的模型文件
+    ├── fault_detector_*.pkl
+    ├── fault_detector_*.pkl.metadata.json
+    └── README.md
+```
+
 ### 快速开始
+
+#### 0. 初始化ML目录结构（首次运行）
+```bash
+# 迁移旧数据（如果存在）并创建新目录结构
+python scripts/migrate_ml_data.py
+
+# 目录说明：
+# data/ml/training_data/ - 存放训练数据（CSV格式）
+# data/ml/raw_data/      - 存放原始传感器数据
+# data/ml/models/        - 存放训练好的模型文件
+```
 
 #### 1. 数据库准备（已在 `models.py` 中定义）
 系统自动创建以下数据表：
@@ -1345,7 +1411,7 @@ python scripts/mysteel_cli.py crawl --material 螺纹 --days 7 --headless false
 #### 2. 生成测试数据
 ```bash
 # 生成1000条测试数据（包含15%故障样本）
-python scripts/generate_test_data.py --n-samples 1000 --output equipment_fault_data.csv
+python scripts/generate_test_data.py --n-samples 1000 --output data/ml/training_data/equipment_anomaly_data.csv
 
 # 输出示例：
 # ✅ 已生成测试数据: equipment_fault_data.csv
@@ -1364,11 +1430,11 @@ temperature,pressure,vibration,humidity,equipment_type,location,faulty
 #### 3. 训练故障检测模型
 ```bash
 # 训练模型（使用默认参数）
-python scripts/train_fault_detector.py --data equipment_fault_data.csv
+python scripts/train_fault_detector.py --data data/ml/training_data/equipment_anomaly_data.csv
 
 # 自定义参数训练
 python scripts/train_fault_detector.py \
-    --data equipment_fault_data.csv \
+    --data data/ml/training_data/equipment_anomaly_data.csv \
     --n-estimators 200 \
     --max-depth 15 \
     --test-size 0.25
@@ -1740,16 +1806,36 @@ for equipment, prediction in zip(equipment_list, predictions):
 #### 场景 3：模型重新训练
 ```bash
 # 1. 导出最近3个月的传感器数据
-python scripts/export_sensor_data.py --start-date 2025-08-01 --end-date 2025-10-31 --output training_data.csv
+python scripts/export_sensor_data.py --start-date 2025-08-01 --end-date 2025-10-31 --output data/ml/training_data/new_training_data.csv
 
 # 2. 训练新模型
-python scripts/train_fault_detector.py --data training_data.csv --n-estimators 200 --max-depth 15
+python scripts/train_fault_detector.py --data data/ml/training_data/new_training_data.csv --n-estimators 200 --max-depth 15
 
 # 3. 评估新模型性能
-# 如果性能提升，新模型会自动成为活跃模型
+# 如果性能提升，新模型会自动成为活跃模型（保存到 data/ml/models/）
 
 # 4. 重启后端服务加载新模型
 python manage.py start backend
+```
+
+#### 场景 4：Agent查询训练数据
+```python
+# Agent可以通过TrainingDataQueryTool查询历史训练数据
+from src.ml.training_data_tool import TrainingDataQueryTool
+
+tool = TrainingDataQueryTool()
+
+# 查询设备统计
+result = tool.execute(query_type="equipment_stats", equipment_type="Turbine")
+print(result)
+
+# 查询故障分析
+result = tool.execute(query_type="fault_analysis")
+print(result)
+
+# 对比正常和故障样本
+result = tool.execute(query_type="compare")
+print(result)
 ```
 
 ### 故障排查
@@ -2621,7 +2707,7 @@ RAG_TIMEOUT_SECONDS=25  # 默认25秒
    <Button variant="primary" size="lg" icon={<SaveIcon />}>
      Save Changes
    </Button>
-
+   
    // ❌ Bad: Non-reusable, hardcoded
    <button className="bg-blue-500 text-white px-4 py-2">
      Save Changes
@@ -2670,7 +2756,7 @@ RAG_TIMEOUT_SECONDS=25  # 默认25秒
      username: string;
      role: UserRole;
    }
-
+   
    // ✅ Import from single source of truth
    import type { User } from '@/lib/types/api';
    ```
@@ -2689,7 +2775,7 @@ RAG_TIMEOUT_SECONDS=25  # 默认25秒
    ├── authStore.ts      // Authentication state
    ├── chatStore.ts      // Chat messages & sessions
    └── uiStore.ts        // UI preferences
-
+   
    // ❌ Bad: Monolithic store
    store/index.ts        // Everything in one file
    ```
@@ -2702,7 +2788,7 @@ RAG_TIMEOUT_SECONDS=25  # 默认25秒
     // lib/api/client.ts
     const apiClient = axios.create({ baseURL: API_URL });
     apiClient.interceptors.request.use(addAuthToken);
-
+    
     // ❌ Bad: Scattered fetch calls throughout components
     ```
 
@@ -2752,7 +2838,7 @@ RAG_TIMEOUT_SECONDS=25  # 默认25秒
     const processedData = useMemo(() => 
       heavyCalculation(rawData), [rawData]
     );
-
+    
     // ✅ Good: Prevent unnecessary re-renders
     const MemoizedChart = memo(ExpensiveChart);
     ```
@@ -2834,7 +2920,7 @@ RAG_TIMEOUT_SECONDS=25  # 默认25秒
     fix(upload): resolve file size validation error
     refactor(api): extract auth logic to middleware
     docs(readme): update installation instructions
-
+    
     # ❌ Bad commit messages
     "fix bug"
     "update"
@@ -2883,7 +2969,7 @@ RAG_TIMEOUT_SECONDS=25  # 默认25秒
     <button aria-label="Close dialog" onClick={onClose}>
       <X />
     </button>
-
+    
     // ❌ Bad: Icon-only button without label
     <button onClick={onClose}>
       <X />
@@ -2902,12 +2988,12 @@ RAG_TIMEOUT_SECONDS=25  # 默认25秒
     ```typescript
     // lib/env.ts
     import { z } from 'zod';
-
+    
     const envSchema = z.object({
       NEXT_PUBLIC_API_URL: z.string().url(),
       DATABASE_URL: z.string(),
     });
-
+    
     export const env = envSchema.parse(process.env);
     ```
 

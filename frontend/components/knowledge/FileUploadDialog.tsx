@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Upload, X, FileText, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Upload, X, FileText, Loader2, CheckCircle2, AlertCircle, Database, User } from "lucide-react";
 import { toast } from "sonner";
 import {
     Dialog,
@@ -14,8 +14,11 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { uploadChatFile } from "@/lib/api/files";
 import { formatBytes } from "@/lib/utils";
+import { useAuthStore } from "@/store/authStore";
 
 interface FileUploadDialogProps {
     open: boolean;
@@ -33,8 +36,18 @@ export function FileUploadDialog({
     open,
     onOpenChange,
 }: FileUploadDialogProps) {
+    const { user } = useAuthStore();
     const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
     const [isDragging, setIsDragging] = useState(false);
+    
+    // 检查用户是否可以上传到知识库（仅管理员和经理）
+    const canUploadToKnowledgeBase = user ? (user.role === "admin" || user.role === "manager") : false;
+    
+    // 根据用户角色设置默认上传类型
+    const [uploadType, setUploadType] = useState<'knowledge_base' | 'user_upload'>(
+        canUploadToKnowledgeBase ? 'knowledge_base' : 'user_upload'
+    );
+    
     const fileInputRef = useRef<HTMLInputElement>(null);
     const queryClient = useQueryClient();
 
@@ -61,20 +74,24 @@ export function FileUploadDialog({
             file: File;
             index: number;
         }) => {
-            return uploadChatFile(file, (progressEvent) => {
-                if (progressEvent.total) {
-                    const progress = Math.round(
-                        (progressEvent.loaded * 100) / progressEvent.total
-                    );
-                    setUploadingFiles((prev) =>
-                        prev.map((f, i) =>
-                            i === index
-                                ? { ...f, progress, status: "uploading" }
-                                : f
-                        )
-                    );
+            return uploadChatFile(
+                file,
+                uploadType,  // 传递上传类型
+                (progressEvent) => {
+                    if (progressEvent.total) {
+                        const progress = Math.round(
+                            (progressEvent.loaded * 100) / progressEvent.total
+                        );
+                        setUploadingFiles((prev) =>
+                            prev.map((f, i) =>
+                                i === index
+                                    ? { ...f, progress, status: "uploading" }
+                                    : f
+                            )
+                        );
+                    }
                 }
-            });
+            );
         },
         onSuccess: (data, variables) => {
             setUploadingFiles((prev) =>
@@ -231,6 +248,60 @@ export function FileUploadDialog({
                 </DialogHeader>
 
                 <div className="space-y-4">
+                    {/* 上传类型选择 - 仅管理员和经理可见 */}
+                    {canUploadToKnowledgeBase && (
+                        <div className="space-y-3 border rounded-lg p-4 bg-muted/50">
+                            <Label className="text-sm font-medium">上传位置</Label>
+                            <RadioGroup 
+                                value={uploadType} 
+                                onValueChange={(value) => setUploadType(value as 'knowledge_base' | 'user_upload')}
+                                className="grid grid-cols-2 gap-4"
+                            >
+                                <div className="flex items-center space-x-2">
+                                    <RadioGroupItem value="knowledge_base" id="knowledge_base" />
+                                    <Label 
+                                        htmlFor="knowledge_base" 
+                                        className="flex items-center gap-2 cursor-pointer font-normal"
+                                    >
+                                        <Database className="h-4 w-4 text-muted-foreground" />
+                                        <div>
+                                            <div className="font-medium">知识库</div>
+                                            <div className="text-xs text-muted-foreground">持久化存储，所有用户可检索</div>
+                                        </div>
+                                    </Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <RadioGroupItem value="user_upload" id="user_upload" />
+                                    <Label 
+                                        htmlFor="user_upload" 
+                                        className="flex items-center gap-2 cursor-pointer font-normal"
+                                    >
+                                        <User className="h-4 w-4 text-muted-foreground" />
+                                        <div>
+                                            <div className="font-medium">临时上传</div>
+                                            <div className="text-xs text-muted-foreground">个人文件，优先检索</div>
+                                        </div>
+                                    </Label>
+                                </div>
+                            </RadioGroup>
+                        </div>
+                    )}
+
+                    {/* 普通用户提示 */}
+                    {!canUploadToKnowledgeBase && (
+                        <div className="border rounded-lg p-3 bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900">
+                            <div className="flex items-start gap-2">
+                                <User className="h-4 w-4 mt-0.5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                                <div className="text-xs text-blue-600 dark:text-blue-400">
+                                    <div className="font-medium mb-1">上传到个人临时目录</div>
+                                    <div className="text-blue-500 dark:text-blue-500">
+                                        文件将优先在您的对话中检索。如需上传到知识库，请联系管理员。
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* 拖拽上传区域 */}
                     <div
                         className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
