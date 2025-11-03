@@ -79,6 +79,54 @@ export interface BuildGraphResponse {
     stats?: KnowledgeGraphStats;
 }
 
+// 蛛网视图相关类型
+export interface CoreEntity {
+    id: string;
+    name: string;
+    type: string;
+    description?: string;
+    is_standard: boolean;
+    related_count: number;
+    confidence: number;
+}
+
+export interface FeatureNode {
+    id: string;
+    name: string;
+    type: string;
+    description?: string;
+    confidence: number;
+    depth: number;
+    is_standard: boolean;
+}
+
+export interface SpiderWebRelation {
+    id: string;
+    source: string;
+    target: string;
+    type: string;
+    confidence: number;
+    is_standard: boolean;
+}
+
+export interface SpiderWebData {
+    center: {
+        id: string;
+        name: string;
+        type: string;
+        description?: string;
+        properties: Record<string, any>;
+        is_core: boolean;
+    };
+    features: Record<string, FeatureNode[]>;  // 特征分类 -> 节点列表
+    relations: SpiderWebRelation[];
+    stats: {
+        total_feature_nodes: number;
+        total_relations: number;
+        categories: Record<string, number>;
+    };
+}
+
 // ==================== API 函数 ====================
 
 /**
@@ -226,3 +274,20 @@ export async function searchGraphVisualizationData(
     return response.data;
 }
 
+/**
+ * 获取核心实体列表（适合作为蛛网中心）
+ */
+export async function getCoreEntities(): Promise<{ core_entities: CoreEntity[]; total: number }> {
+    const response = await apiClient.get('/api/knowledge-graph/core-entities');
+    return response.data;
+}
+
+/**
+ * 获取蛛网结构数据（以指定实体为中心）
+ */
+export async function getSpiderWebGraph(centerEntityId: string, maxDepth: number = 2): Promise<SpiderWebData> {
+    const response = await apiClient.get(
+        `/api/knowledge-graph/spider-web/${centerEntityId}?max_depth=${maxDepth}`
+    );
+    return response.data;
+}

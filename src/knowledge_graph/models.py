@@ -17,10 +17,17 @@ class SteelEntityType(str, Enum):
     STEEL_GRADE = "steel_grade"  # 钢种
     STEEL_TYPE = "steel_type"    # 钢材类型
     ALLOY_ELEMENT = "alloy_element"  # 合金元素
-    MATERIAL_PROPERTY = "material_property"  # 材料性能
+    COMPOSITION = "composition"  # 化学成分
+    MATERIAL_PROPERTY = "material_property"  # 材料性能（通用）
+    MECHANICAL_PROPERTY = "mechanical_property"  # 力学性能
+    PHYSICAL_PROPERTY = "physical_property"  # 物理性能
+    CHEMICAL_PROPERTY = "chemical_property"  # 化学性能
     
     # 工艺相关
-    PROCESS = "process"  # 工艺
+    PROCESS = "process"  # 工艺（通用）
+    TREATMENT = "treatment"  # 热处理
+    FORMING = "forming"  # 成型工艺
+    QUALITY_CONTROL = "quality_control"  # 质量控制
     EQUIPMENT = "equipment"  # 设备
     TECHNOLOGY = "technology"  # 技术
     
@@ -67,6 +74,7 @@ class SteelRelationType(str, Enum):
     # 工艺关系
     PRODUCED_BY = "produced_by"  # 由...生产
     USES_EQUIPMENT = "uses_equipment"  # 使用设备
+    REQUIRES = "requires"  # 需要（通用）
     REQUIRES_TECHNOLOGY = "requires_technology"  # 需要技术
     APPLIES_TO = "applies_to"  # 应用于
     

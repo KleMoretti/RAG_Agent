@@ -761,3 +761,164 @@ async def build_knowledge_graph(
     except Exception as e:
         logger.error(f"Error building knowledge graph: {e}")
         raise HTTPException(status_code=500, detail=f"构建知识图谱时出错: {str(e)}")
+
+
+@router.get("/spider-web/{center_entity_id}")
+def get_spider_web_graph(
+    center_entity_id: str = Path(..., description="中心实体ID"),
+    max_depth: int = Query(2, description="最大深度"),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    获取蛛网结构的知识图谱数据
+    
+    以指定实体为中心，按特征分类展示周围关联实体
+    """
+    global knowledge_graph_query
+    
+    if not knowledge_graph_query:
+        raise HTTPException(status_code=503, detail="知识图谱未加载")
+    
+    try:
+        from .steel_ontology import get_steel_ontology
+        ontology = get_steel_ontology()
+        
+        # 获取中心实体
+        center_entity = knowledge_graph_query.kg.entities.get(center_entity_id)
+        if not center_entity:
+            raise HTTPException(status_code=404, detail=f"实体不存在: {center_entity_id}")
+        
+        # 构建蛛网结构
+        spider_web = {
+            "center": {
+                "id": center_entity.id,
+                "name": center_entity.name,
+                "type": center_entity.entity_type.value,
+                "description": center_entity.description,
+                "properties": center_entity.properties,
+                "is_core": center_entity.properties.get('is_standard', False)
+            },
+            "features": {},  # 按特征分类的节点
+            "relations": []
+        }
+        
+        # 获取特征分类
+        feature_categories = ontology.get_feature_categories()
+        for category_name in feature_categories.keys():
+            spider_web["features"][category_name] = []
+        spider_web["features"]["其他"] = []
+        
+        # 获取相关实体
+        related = knowledge_graph_query.get_related_entities(
+            center_entity_id,
+            max_depth=max_depth
+        )
+        
+        # 按特征分类组织节点
+        related_ids = set()  # 用于快速查找的ID集合
+        for entity in related:
+            if entity.id == center_entity_id:
+                continue
+            
+            related_ids.add(entity.id)
+            
+            # 获取实体所属分类
+            category = ontology.get_entity_category(entity.entity_type.value)
+            
+            node_data = {
+                "id": entity.id,
+                "name": entity.name,
+                "type": entity.entity_type.value,
+                "description": entity.description,
+                "confidence": entity.confidence,
+                "depth": 1,  # 简化：不追踪深度信息
+                "is_standard": entity.properties.get('is_standard', False)
+            }
+            
+            if category in spider_web["features"]:
+                spider_web["features"][category].append(node_data)
+            else:
+                spider_web["features"]["其他"].append(node_data)
+        
+        # 收集关系
+        for relation in knowledge_graph_query.kg.relations.values():
+            if relation.source_id == center_entity_id or relation.target_id == center_entity_id:
+                spider_web["relations"].append({
+                    "id": relation.id,
+                    "source": relation.source_id,
+                    "target": relation.target_id,
+                    "type": relation.relation_type.value,
+                    "confidence": relation.confidence,
+                    "is_standard": relation.properties.get('is_standard', False)
+                })
+            elif relation.source_id in related_ids and relation.target_id in related_ids:
+                # 相关实体之间的关系
+                spider_web["relations"].append({
+                    "id": relation.id,
+                    "source": relation.source_id,
+                    "target": relation.target_id,
+                    "type": relation.relation_type.value,
+                    "confidence": relation.confidence,
+                    "is_standard": relation.properties.get('is_standard', False)
+                })
+        
+        # 统计信息
+        total_nodes = sum(len(nodes) for nodes in spider_web["features"].values())
+        spider_web["stats"] = {
+            "total_feature_nodes": total_nodes,
+            "total_relations": len(spider_web["relations"]),
+            "categories": {k: len(v) for k, v in spider_web["features"].items() if v}
+        }
+        
+        return spider_web
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating spider web graph: {e}")
+        raise HTTPException(status_code=500, detail=f"生成蛛网图谱失败: {str(e)}")
+
+
+@router.get("/core-entities")
+def get_core_entities(current_user: User = Depends(get_current_user)):
+    """
+    获取核心实体列表（适合作为蛛网中心）
+    """
+    global knowledge_graph_query
+    
+    if not knowledge_graph_query:
+        raise HTTPException(status_code=503, detail="知识图谱未加载")
+    
+    try:
+        from .steel_ontology import CoreEntityType
+        
+        core_entities = []
+        for entity in knowledge_graph_query.kg.entities.values():
+            # 筛选核心实体类型
+            if entity.entity_type.value in [t.value for t in CoreEntityType]:
+                # 统计关联实体数量
+                related_count = len(knowledge_graph_query.get_related_entities(
+                    entity.id, max_depth=1
+                ))
+                
+                core_entities.append({
+                    "id": entity.id,
+                    "name": entity.name,
+                    "type": entity.entity_type.value,
+                    "description": entity.description,
+                    "is_standard": entity.properties.get('is_standard', False),
+                    "related_count": related_count,
+                    "confidence": entity.confidence
+                })
+        
+        # 按关联数量排序
+        core_entities.sort(key=lambda x: x['related_count'], reverse=True)
+        
+        return {
+            "core_entities": core_entities,
+            "total": len(core_entities)
+        }
+    
+    except Exception as e:
+        logger.error(f"Error getting core entities: {e}")
+        raise HTTPException(status_code=500, detail=f"获取核心实体失败: {str(e)}")

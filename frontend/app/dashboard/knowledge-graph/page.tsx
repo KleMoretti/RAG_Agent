@@ -29,12 +29,12 @@ import {
     type SearchEntitiesRequest,
 } from "@/lib/api/knowledge-graph";
 import { KnowledgeGraphVisualization } from "@/components/knowledge-graph/KnowledgeGraphVisualization";
-import { EntityListView } from "@/components/knowledge-graph/EntityListView";
+import { SpiderWebView } from "@/components/knowledge-graph/SpiderWebView";
 
 export default function KnowledgeGraphPage() {
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedEntityType, setSelectedEntityType] = useState<string | undefined>();
-    const [viewMode, setViewMode] = useState<"graph" | "list">("graph");
+    const [viewMode, setViewMode] = useState<"spider" | "graph">("spider");
 
     const queryClient = useQueryClient();
     const { user } = useAuthStore();
@@ -294,20 +294,20 @@ export default function KnowledgeGraphPage() {
                 {/* 视图切换 */}
                 <div className="flex items-center gap-2">
                     <Button
+                        variant={viewMode === "spider" ? "default" : "outline"}
+                        onClick={() => setViewMode("spider")}
+                        size="sm"
+                    >
+                        <Network className="h-4 w-4 mr-2" />
+                        蛛网视图
+                    </Button>
+                    <Button
                         variant={viewMode === "graph" ? "default" : "outline"}
                         onClick={() => setViewMode("graph")}
                         size="sm"
                     >
                         <Network className="h-4 w-4 mr-2" />
-                        图谱视图
-                    </Button>
-                    <Button
-                        variant={viewMode === "list" ? "default" : "outline"}
-                        onClick={() => setViewMode("list")}
-                        size="sm"
-                    >
-                        <Layers className="h-4 w-4 mr-2" />
-                        列表视图
+                        传统图谱
                     </Button>
                 </div>
 
@@ -315,17 +315,13 @@ export default function KnowledgeGraphPage() {
                 {stats && stats.total_entities > 0 ? (
                     <Card>
                         <CardContent className="p-6">
-                            {viewMode === "graph" ? (
+                            {viewMode === "spider" ? (
+                                <SpiderWebView />
+                            ) : (
                                 <KnowledgeGraphVisualization
                                     searchResults={graphSearchResults}
                                     isSearching={isSearching}
                                     searchQuery={searchQuery}
-                                />
-                            ) : (
-                                <EntityListView
-                                    entities={searchResults?.entities || []}
-                                    isLoading={isSearching}
-                                    stats={stats}
                                 />
                             )}
                         </CardContent>
@@ -335,4 +331,3 @@ export default function KnowledgeGraphPage() {
         </div>
     );
 }
-

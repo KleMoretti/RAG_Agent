@@ -2,6 +2,7 @@
 钢铁领域知识图谱构建器
 
 负责从文档中构建钢铁领域知识图谱。
+采用标准本体（Ontology）作为基准，构建蛛网结构的知识图谱。
 """
 
 import logging
@@ -16,12 +17,13 @@ from .models import (
     SteelEntityType, SteelRelationType
 )
 from .steel_extractor import SteelEntityExtractor, SteelRelationExtractor
+from .steel_ontology import get_steel_ontology, CoreEntityType, FeatureEntityType
 
 logger = logging.getLogger(__name__)
 
 
 class SteelKnowledgeGraphBuilder:
-    """钢铁领域知识图谱构建器"""
+    """钢铁领域知识图谱构建器（基于标准本体）"""
     
     def __init__(self):
         self.entity_extractor = SteelEntityExtractor()
@@ -29,6 +31,84 @@ class SteelKnowledgeGraphBuilder:
         self.knowledge_graph = SteelKnowledgeGraph()
         self.entity_name_to_id: Dict[str, str] = {}
         self.entity_aliases: Dict[str, str] = {}  # 别名 -> 实体ID
+        self.ontology = get_steel_ontology()  # 加载标准本体
+        self._initialize_from_ontology()  # 初始化基准图谱
+    
+    def _initialize_from_ontology(self):
+        """从标准本体初始化基准知识图谱"""
+        logger.info("正在从标准本体初始化基准知识图谱...")
+        
+        # 添加核心实体
+        for entity_name, entity_def in self.ontology.core_entities.items():
+            entity_id = str(uuid.uuid4())
+            entity = SteelEntity(
+                id=entity_id,
+                name=entity_def.name,
+                entity_type=SteelEntityType(entity_def.entity_type.value),
+                description=entity_def.description,
+                properties={
+                    'is_standard': True,
+                    'aliases': entity_def.aliases,
+                    'typical_values': entity_def.typical_values or []
+                },
+                aliases=entity_def.aliases,
+                confidence=1.0
+            )
+            self.knowledge_graph.add_entity(entity)
+            self.entity_name_to_id[entity_name] = entity_id
+            
+            # 添加别名映射
+            for alias in entity_def.aliases:
+                self.entity_aliases[alias] = entity_id
+        
+        # 添加特征实体
+        for entity_name, entity_def in self.ontology.standard_entities.items():
+            entity_id = str(uuid.uuid4())
+            entity = SteelEntity(
+                id=entity_id,
+                name=entity_def.name,
+                entity_type=SteelEntityType(entity_def.entity_type.value),
+                description=entity_def.description,
+                properties={
+                    'is_standard': True,
+                    'aliases': entity_def.aliases,
+                    'category': self.ontology.get_entity_category(entity_def.entity_type.value)
+                },
+                aliases=entity_def.aliases,
+                confidence=1.0
+            )
+            self.knowledge_graph.add_entity(entity)
+            self.entity_name_to_id[entity_name] = entity_id
+            
+            # 添加别名映射
+            for alias in entity_def.aliases:
+                self.entity_aliases[alias] = entity_id
+        
+        # 添加标准关系
+        for relation_def in self.ontology.standard_relations:
+            source_id = self.entity_name_to_id.get(relation_def.source)
+            target_id = self.entity_name_to_id.get(relation_def.target)
+            
+            if source_id and target_id:
+                relation = SteelRelation(
+                    id=str(uuid.uuid4()),
+                    source_id=source_id,
+                    target_id=target_id,
+                    relation_type=SteelRelationType(relation_def.relation_type),
+                    properties={
+                        'is_standard': True,
+                        'description': relation_def.description
+                    },
+                    confidence=1.0
+                )
+                self.knowledge_graph.add_relation(relation)
+        
+        logger.info(
+            f"✅ 基准知识图谱已初始化: "
+            f"{len(self.ontology.core_entities)} 个核心实体, "
+            f"{len(self.ontology.standard_entities)} 个特征实体, "
+            f"{len(self.ontology.standard_relations)} 个标准关系"
+        )
     
     def build_from_text(self, text: str, source: str = "unknown") -> SteelKnowledgeGraph:
         """

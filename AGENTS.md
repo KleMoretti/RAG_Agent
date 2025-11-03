@@ -80,7 +80,7 @@ python -c "from main import get_dual_vector_store; s=get_dual_vector_store(); pr
 ```
 
 **存储架构**：
-- `data/knowledge_base/` - 知识库（管理员/经理维护，持久化）
+- `data/knowledge/` - 知识库（管理员/经理维护，持久化）
 - `data/user_uploads/` - 用户上传（所有用户，临时文件）
 - 双向量索引：`data/embeddings/{knowledge_base,user_uploads}.faiss`
 
@@ -477,177 +477,98 @@ logger.info(f"File {file_name} downloaded by {current_user.username} ({current_u
 
 ### Knowledge Graph Management (知识图谱管理)
 
-**✨ v2.0 重大更新 (2025-10-30)**：
-- ✅ **增强关系提取**：支持 15+ 种关系类型（contains, produced_by, used_in, complies_with, improves 等）
-- ✅ **React Flow 可视化**：交互式图谱展示，支持缩放、拖拽、高亮搜索结果
-- ✅ **实体详情面板**：点击节点查看完整信息、属性、关系
-- ✅ **智能搜索**：搜索匹配节点 + 一跳关系节点自动扩展
-- ✅ **多视图切换**：图谱视图 + 列表视图
-- ✅ **全屏模式**：支持全屏展示大型图谱
-- ✅ **节点样式优化**：按实体类型区分颜色，置信度动画
+**✨ v3.1 蛛网交互优化 (2025-11-02)**：
+- ✅ **圆形布局**：节点以优雅的圆形方式排列，视觉更加清晰美观
+- ✅ **动画过渡**：点击节点平滑移动到中心，使用 Framer Motion 实现流畅动画
+- ✅ **智能高亮**：选中节点时自动降低其他节点可见度（淡出策略）
+- ✅ **同步选择**：点击节点自动更新下拉选择框，保持UI一致性
+- ✅ **详情面板**：右侧弹出节点详情卡片，显示属性、描述、置信度等信息
+- ✅ **悬停效果**：鼠标悬停时节点放大并高亮连线
+- ✅ **视觉反馈**：实心节点表示标准本体，空心节点表示文档提取
 
-#### 快速开始
+#### 核心功能
 
+1. **标准本体（知识基准）**
+   - **核心实体**：钢种牌号、工艺流程、设备、产品
+   - **特征分类**：
+     - 成分特征：合金元素、化学成分
+     - 性能特征：力学性能、物理性能、化学性能
+     - 工艺特征：热处理、成型工艺、质量控制
+     - 应用特征：应用领域、技术标准、规格要求
+   
+2. **蛛网展示（圆形布局）**
+   - 中心节点：核心实体（可动态切换）
+   - 第一层圆环：特征分类节点（成分、性能、工艺、应用）
+   - 第二层圆环：具体实体节点（围绕分类节点圆形分布）
+   - 连线动画：虚线连接中心与分类，实线箭头连接分类与实体
+   - 背景圆环：装饰性虚线圆环辅助视觉层次
+
+3. **交互功能**
+   - **点击节点**：查看详情 + 设为新中心（动画过渡，不刷新页面）
+   - **悬停节点**：节点放大 + 连线高亮 + 显示完整名称
+   - **选中状态**：发光效果 + 其他节点半透明 + 显示详情面板
+   - **详情面板**：显示名称、类型、描述、属性、别名、置信度
+   - **同步更新**：点击节点后下拉框自动切换到该实体
+
+4. **图谱构建**
+   - 自动加载标准本体作为基准
+   - 从文档提取的实体关联到标准分类
+   - 保持图谱结构的一致性和可读性
+
+#### API 端点
+
+**蛛网视图**：
 ```bash
-# 1. 构建知识图谱（从上传的文档自动提取实体和关系）
-python scripts/init_steel_knowledge_graph.py
+# 获取蛛网结构数据（以指定实体为中心）
+GET /api/knowledge-graph/spider-web/{entity_id}?max_depth=2
 
-# 2. 访问 Web 界面
-http://localhost:3000/dashboard/knowledge-graph
-
-# 3. 点击"重新构建图谱"按钮（管理员/经理）
-# 4. 在搜索框中输入关键词（如 "Q235"、"热轧"、"抗拉强度"）
-# 5. 点击节点查看详情
+# 获取核心实体列表（适合作为蛛网中心）
+GET /api/knowledge-graph/core-entities
 ```
 
-#### 知识图谱 API 端点
-
-**图谱可视化**：
+**传统图谱**：
 ```bash
-# 获取图谱可视化数据（nodes + edges 格式）
-GET /api/knowledge-graph/graph-data?entity_types=steel_grade,process&limit=100
-
-# 搜索图谱数据（返回匹配节点 + 一跳关系）
-POST /api/knowledge-graph/search/graph-data
-Content-Type: application/json
-{
-  "query": "Q235",
-  "entity_types": ["steel_grade"],
-  "limit": 50
-}
-```
-
-**实体查询**：
-```bash
-# 获取统计信息
-GET /api/knowledge-graph/statistics
+# 获取图谱数据（nodes + edges 格式）
+GET /api/knowledge-graph/graph-data?entity_types=steel_grade&limit=100
 
 # 搜索实体
 POST /api/knowledge-graph/search/entities
 
 # 获取实体详情
 GET /api/knowledge-graph/entities/{id}
-GET /api/knowledge-graph/entities/name/{name}
 
-# 获取相关实体
-POST /api/knowledge-graph/entities/{id}/related
-```
-
-**管理操作**：
-```bash
-# 构建/重建知识图谱（管理员/经理）
+# 构建/重建知识图谱
 POST /api/knowledge-graph/build
 ```
 
-#### 知识图谱 Web 界面（已完全实现 ✅）
+#### 快速开始
 
-**访问路径**: `http://localhost:3000/dashboard/knowledge-graph`  
-**入口位置**: 知识库页面右上角"知识图谱"按钮
+```bash
+# 1. 构建知识图谱（自动加载标准本体）
+python scripts/init_steel_knowledge_graph.py
 
-**核心功能**:
+# 2. 访问 Web 界面
+http://localhost:3000/dashboard/knowledge-graph
 
-1. **📊 统计仪表板**
-   - 总实体数、总关系数
-   - 实体类型分布、关系类型分布
-   - 数据状态监控
+# 3. 选择核心实体（如"碳素结构钢"）
+# 4. 切换到蛛网视图
+# 5. 查看按特征分类的关联实体
+```
 
-2. **🔍 智能搜索**
-   - 实时搜索，显示结果数量
-   - 按实体类型过滤
-   - 搜索结果高亮显示（实心节点 + 发光效果）
-   - 自动加载一跳关系节点
+#### 数据存储
 
-3. **🎨 交互式图谱视图**
-   - **节点交互**：
-     - 鼠标滚轮缩放
-     - 拖拽画布移动
-     - 点击节点查看详情
-   - **节点样式**：
-     - 按实体类型区分颜色（15+ 种类型）
-     - 搜索匹配节点：实心填充 + 发光
-     - 普通节点：空心边框
-   - **关系展示**：
-     - 箭头显示方向
-     - 边标签显示关系类型
-     - 高置信度关系（>80%）显示流动动画
-     - 边粗细反映置信度
-   - **控制面板**：
-     - 缩放控制（+ / -）
-     - 小地图（右下角）
-     - 全屏模式切换
-     - 统计信息实时显示
+- **文件路径**：`data/knowledge_graph.json`
+- **标准本体**：系统启动时自动加载（`src/knowledge_graph/steel_ontology.py`）
+- **更新方式**：重新构建图谱或通过 API 增量更新
 
-4. **📋 实体详情面板**（点击节点打开）
-   - 实体名称、类型、描述
-   - 置信度可视化进度条
-   - 属性列表（source、context、first_mentioned 等）
-   - 搜索匹配标记
+#### 权限控制
 
-5. **📝 列表视图**
-   - 表格形式查看所有实体
-   - 按类型、置信度排序
-   - 支持快速浏览
-
-6. **🔄 一键重建**
-   - 管理员和经理可重新构建图谱
-   - 显示构建进度和结果统计
-
-**权限控制**:
 | 操作 | ADMIN | MANAGER | TECHNICIAN |
 |-----|-------|---------|------------|
 | 查看图谱 | ✅ | ✅ | ✅ |
 | 搜索实体 | ✅ | ✅ | ✅ |
-| 查看详情 | ✅ | ✅ | ✅ |
+| 切换视图 | ✅ | ✅ | ✅ |
 | 构建图谱 | ✅ | ✅ | ❌ |
-
-**数据存储**：
-- 数据文件：`data/knowledge_graph.json`（~6MB，6669+ 实体）
-- 自动加载：Agent 启动时自动加载知识图谱
-- 更新方式：重新运行 `init_steel_knowledge_graph.py` 或点击 Web 界面"重新构建图谱"
-
-**Agent 集成**：
-- Agent 通过 `KnowledgeGraphQueryTool` 查询知识图谱
-- 支持查询类型：statistics, search, properties, relationships, similar, steel_composition
-- 示例查询：
-  ```python
-  tool.execute(query_type="search", query="Q235")
-  tool.execute(query_type="steel_composition", steel_grade="Q235")
-  ```
-
-**📚 详细文档**:
-- **使用指南**: `docs/KNOWLEDGE_GRAPH_USAGE.md` - Web 界面使用说明
-- **技术指南**: `docs/KNOWLEDGE_GRAPH_GUIDE.md` - 技术实现细节
-- **API 文档**: 本文档 - 完整 API 参考
-
-**🎯 使用示例**:
-
-```bash
-# 1. 搜索钢种 Q235
-在搜索框输入 "Q235"
-→ 图谱显示 Q235 节点（蓝色实心）+ 相关实体（成分、性能、应用）
-
-# 2. 查看实体详情
-点击 Q235 节点
-→ 右侧面板显示：
-  - 名称：Q235
-  - 类型：steel_grade
-  - 描述：碳素结构钢
-  - 置信度：95%
-  - 属性：source=文档名, context=上下文片段
-
-# 3. 探索关系
-观察连线：
-  - Q235 → 碳（contains，包含碳元素）
-  - Q235 → 抗拉强度（has_property，具有抗拉强度性能）
-  - Q235 → 建筑结构（used_in，用于建筑结构）
-  - Q235 → GB/T 700（complies_with，符合 GB/T 700 标准）
-```
-
-**🚀 技术亮点**:
-- **前端**: React Flow + TanStack Query + Zustand
-- **后端**: FastAPI + SQLAlchemy + 正则表达式 NER
-- **数据格式**: JSON（nodes + edges）
-- **性能优化**: 节点限制（默认 100）、懒加载、虚拟化滚动
 
 ---
 
@@ -1376,16 +1297,17 @@ python scripts/mysteel_cli.py crawl --material 螺纹 --days 7 --headless false
 ML相关数据和模型使用独立的目录结构：
 
 ```
-data/ml/
-├── training_data/      # 训练数据（CSV格式）
-│   ├── equipment_anomaly_data.csv
-│   └── README.md
-├── raw_data/           # 原始传感器数据
-│   └── README.md
-└── models/             # 训练好的模型文件
-    ├── fault_detector_*.pkl
-    ├── fault_detector_*.pkl.metadata.json
-    └── README.md
+data/
+├── knowledge/          # 知识库文件（统一存储）
+│   ├── raw/           # 原始文件
+│   └── processed/     # 处理后的文件
+├── ml/                # 机器学习相关
+│   ├── training_data/ # 训练数据（CSV格式）
+│   ├── raw_data/      # 原始传感器数据
+│   └── models/        # 训练好的模型文件
+└── embeddings/        # 向量索引
+    ├── knowledge_base.faiss
+    └── user_uploads.faiss
 ```
 
 ### 快速开始
@@ -3619,8 +3541,8 @@ interface DataConnector {
 - `POST /api/upload`
 - Content-Type: `multipart/form-data`
 - Form field: `file`
-- 自动保存到 `data/raw/`
-- 自动处理并索引到 `data/processed/` 和 FAISS 向量库
+- 自动保存到 `data/knowledge/raw/`
+- 自动处理并索引到 `data/knowledge/processed/` 和 FAISS 向量库
 
 **使用示例**：
 ```typescript
@@ -4104,7 +4026,7 @@ def _convert_fullwidth_to_halfwidth(self, text: str) -> str:
    ```bash
    # 查看文档的实际分块内容
    python -c "import json; from pathlib import Path; \
-              p = Path('data/processed/YOUR_FILE.pdf.chunks.jsonl'); \
+              p = Path('data/knowledge/processed/YOUR_FILE.pdf.chunks.jsonl'); \
               lines = p.read_text(encoding='utf-8').split('\n'); \
               [print(f'块{i}:', json.loads(line)['content'][:200], '\n') \
                for i, line in enumerate(lines[:5])]"
@@ -4183,15 +4105,15 @@ def _convert_fullwidth_to_halfwidth(self, text: str) -> str:
 - 预览/下载失败，返回 404 错误
 
 **根本原因**：
-1. `list_files` 接口原本从 `data/processed` 读取，列出了内部处理文件（.chunks.jsonl, .done）
+1. `list_files` 接口原本从 `data/knowledge/processed` 读取，列出了内部处理文件（.chunks.jsonl, .done）
 2. 文件 ID 使用 `doc.fileName`（显示名称）而不是完整的 `doc.id`（包含哈希前缀）
 
 **解决方案（已修复）**：
 1. **后端修改** (`src/api/admin.py`):
-   - `list_files` 改为从 `data/raw` 读取原始文件
+   - `list_files` 改为从 `data/knowledge/raw` 读取原始文件
    - 过滤掉内部处理文件（.chunks.jsonl, .done）
    - 使用实际文件名作为 ID，提取显示名称（移除哈希前缀）
-   - `delete_file` 同时删除 `data/raw` 和 `data/processed` 中的文件
+   - `delete_file` 同时删除 `data/knowledge/raw` 和 `data/knowledge/processed` 中的文件
    - 新增 `preview_file` 和 `download_file` 接口
 
 2. **前端修改** (`frontend/app/dashboard/knowledge/page.tsx`):
@@ -4205,15 +4127,19 @@ def _convert_fullwidth_to_halfwidth(self, text: str) -> str:
 **文件存储结构**：
 ```
 data/
-├── raw/                          # 原始上传文件
-│   └── {hash}_{filename}         # 完整 file_id
-└── processed/                    # 处理后的文件
-    ├── {hash}_{filename}.chunks.jsonl  # 分块数据
-    └── {hash}_{filename}.done          # 处理完成标记
+├── knowledge/                    # 知识库文件（统一存储）
+│   ├── raw/                     # 原始上传文件
+│   │   └── {hash}_{filename}    # 完整 file_id
+│   └── processed/               # 处理后的文件
+│       ├── {hash}_{filename}.chunks.jsonl  # 分块数据
+│       └── {hash}_{filename}.done          # 处理完成标记
+└── user_uploads/                # 用户上传文件
+    ├── raw/                     # 原始上传文件
+    └── processed/               # 处理后的文件
 ```
 
 **API 端点更新**：
-- `GET /api/admin/files` - 从 data/raw 读取，返回 `{id: 完整file_id, fileName: 显示名称}`
+- `GET /api/admin/files` - 从 data/knowledge/raw 读取，返回 `{id: 完整file_id, fileName: 显示名称}`
 - `GET /api/admin/files/{file_name}/preview` - 预览原始文件 + 分块信息
 - `GET /api/admin/files/{file_name}/download` - 下载原始文件
 - `DELETE /api/admin/files/{file_name}` - 删除原始文件 + 处理文件
@@ -4232,10 +4158,10 @@ data/
 4. 磁盘空间不足
 
 **解决方案**：
-1. 检查文件大小：`ls -lh data/raw/`
+1. 检查文件大小：`ls -lh data/knowledge/raw/`
 2. 验证文件格式扩展名
 3. 检查后端日志是否有错误
-4. 确认 `data/raw/` 和 `data/processed/` 目录存在且可写
+4. 确认 `data/knowledge/raw/` 和 `data/knowledge/processed/` 目录存在且可写
 
 #### 问题：文件上传后无法检索
 **解决方案**：
@@ -4247,7 +4173,7 @@ data/
    ```bash
    python scripts/rag_cli.py build --rebuild
    ```
-3. 检查文档是否在 `data/processed` 目录
+3. 检查文档是否在 `data/knowledge/processed` 目录
 4. 验证 `.done` 标记文件是否存在
 
 #### 问题：上传进度条不显示
@@ -4266,7 +4192,7 @@ GET /api/admin/files/xxx.chunks.jsonl/preview HTTP/1.1" 404 Not Found
 
 **解决方案**：
 1. 确保前端所有文件操作使用 `doc.id`
-2. 检查后端接口从 `data/raw` 读取文件
+2. 检查后端接口从 `data/knowledge/raw` 读取文件
 3. 验证文件 ID 格式正确：`{hash}_{original_name}`
 
 ### 通用调试步骤

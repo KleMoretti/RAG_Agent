@@ -6,15 +6,15 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     vector_index_path: str = "./data/index/faiss.index"
-    data_dir: str = "./data/raw"
+    data_dir: str = "./data/knowledge/raw"  # 统一到 data/knowledge/ 目录
     log_level: str = "INFO"
     top_k: int = 10  # 增加检索数量，提高召回率
     max_chunk_tokens: int = 350
     chunk_overlap: int = 40
 
-    # 知识库文件存储（管理员维护的持久化知识）
-    knowledge_base_raw_dir: str = "./data/knowledge_base/raw"
-    knowledge_base_processed_dir: str = "./data/knowledge_base/processed"
+    # 知识库文件存储（统一到 data/knowledge/ 目录下）
+    knowledge_base_raw_dir: str = "./data/knowledge/raw"
+    knowledge_base_processed_dir: str = "./data/knowledge/processed"
     knowledge_base_index_path: str = "./data/embeddings/knowledge_base.faiss"
 
     # 用户上传文件存储（临时、个人文件）
@@ -52,11 +52,11 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     s = Settings()
-    # 创建旧的目录（保持向后兼容）
+    # 创建知识库目录（统一到 data/knowledge/ 下）
     Path(s.data_dir).mkdir(parents=True, exist_ok=True)
     Path(s.vector_index_path).parent.mkdir(parents=True, exist_ok=True)
     
-    # 创建知识库目录
+    # 创建知识库目录（raw 和 processed）
     Path(s.knowledge_base_raw_dir).mkdir(parents=True, exist_ok=True)
     Path(s.knowledge_base_processed_dir).mkdir(parents=True, exist_ok=True)
     Path(s.knowledge_base_index_path).parent.mkdir(parents=True, exist_ok=True)

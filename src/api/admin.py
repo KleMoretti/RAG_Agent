@@ -418,7 +418,7 @@ def list_files(
         import os
 
         # 获取文件目录 - 支持双向量存储架构
-        kb_raw_dir = Path("data/knowledge_base/raw")
+        kb_raw_dir = Path("data/knowledge/raw")
         user_raw_dir = Path("data/user_uploads/raw")
         
         # 获取所有文件
@@ -426,7 +426,7 @@ def list_files(
         
         # 处理知识库文件
         if kb_raw_dir.exists():
-            kb_processed_dir = Path("data/knowledge_base/processed")
+            kb_processed_dir = Path("data/knowledge/processed")
             for file_path in kb_raw_dir.glob("*"):
                 if file_path.is_file():
                     stat = file_path.stat()
@@ -535,8 +535,8 @@ def delete_file(
         
         # 根据前缀确定目录
         if prefix == "kb":
-            raw_dir = Path("data/knowledge_base/raw")
-            processed_dir = Path("data/knowledge_base/processed")
+            raw_dir = Path("data/knowledge/raw")
+            processed_dir = Path("data/knowledge/processed")
         elif prefix == "user":
             raw_dir = Path("data/user_uploads/raw")
             processed_dir = Path("data/user_uploads/processed")
@@ -600,8 +600,8 @@ def batch_delete_files(
                 
                 # 根据前缀确定目录
                 if prefix == "kb":
-                    raw_dir = Path("data/knowledge_base/raw")
-                    processed_dir = Path("data/knowledge_base/processed")
+                    raw_dir = Path("data/knowledge/raw")
+                    processed_dir = Path("data/knowledge/processed")
                 elif prefix == "user":
                     raw_dir = Path("data/user_uploads/raw")
                     processed_dir = Path("data/user_uploads/processed")
@@ -664,8 +664,8 @@ def preview_file(
         
         # 根据前缀确定目录
         if prefix == "kb":
-            raw_dir = Path("data/knowledge_base/raw")
-            processed_dir = Path("data/knowledge_base/processed")
+            raw_dir = Path("data/knowledge/raw")
+            processed_dir = Path("data/knowledge/processed")
         elif prefix == "user":
             raw_dir = Path("data/user_uploads/raw")
             processed_dir = Path("data/user_uploads/processed")
@@ -759,7 +759,7 @@ def download_file(
         
         # 根据前缀确定目录
         if prefix == "kb":
-            raw_dir = Path("data/knowledge_base/raw")
+            raw_dir = Path("data/knowledge/raw")
         elif prefix == "user":
             raw_dir = Path("data/user_uploads/raw")
         else:
@@ -1071,7 +1071,7 @@ def get_system_stats(
         admin_users = db.query(User).filter(User.role == UserRole.ADMIN).count()
 
         # 文件统计
-        files_dir = Path("data/processed")
+        files_dir = Path("data/knowledge/processed")
         file_count = 0
         total_size = 0
         if files_dir.exists():
