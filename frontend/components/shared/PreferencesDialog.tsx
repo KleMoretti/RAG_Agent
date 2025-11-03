@@ -175,3 +175,4 @@ export function PreferencesDialog({ open, onOpenChange }: PreferencesDialogProps
     );
 }
 
+

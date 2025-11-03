@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { ProcessNode, ProcessEdge } from "@/lib/types/workflow";
-import { NODE_COLORS, STATUS_COLORS } from "@/lib/constants/processData";
+import { NODE_COLORS, STATUS_COLORS } from "@/lib/constants/steelProcessTemplates";
 import {
     Factory,
     Flame,

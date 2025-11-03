@@ -36,7 +36,8 @@ export function NodeDetailPanel({ node, onClose }: NodeDetailPanelProps) {
 
     return (
         <Card className="h-full flex flex-col shadow-lg border-2">
-            <CardHeader className="flex-shrink-0">
+            {/* 固定头部 */}
+            <CardHeader className="flex-shrink-0 pb-4">
                 <div className="flex items-start justify-between">
                     <div className="space-y-1 flex-1 min-w-0">
                         <div className="flex items-center gap-2">
@@ -61,12 +62,12 @@ export function NodeDetailPanel({ node, onClose }: NodeDetailPanelProps) {
                                 </Badge>
                             )}
                         </div>
-                        <CardDescription>{node.description}</CardDescription>
+                        <CardDescription className="line-clamp-2">{node.description}</CardDescription>
                     </div>
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="flex-shrink-0"
+                        className="flex-shrink-0 -mt-1"
                         onClick={onClose}
                     >
                         <X className="size-4" />
@@ -76,8 +77,10 @@ export function NodeDetailPanel({ node, onClose }: NodeDetailPanelProps) {
 
             <Separator />
 
-            <ScrollArea className="flex-1">
-                <CardContent className="space-y-6 p-6">
+            {/* 可滚动内容区 */}
+            <div className="flex-1 overflow-hidden relative">
+                <ScrollArea className="h-full">
+                    <CardContent className="space-y-6 p-6 pb-8">
                     {/* 工艺参数 */}
                     {node.parameters && node.parameters.length > 0 && (
                         <div className="space-y-3">
@@ -170,7 +173,8 @@ export function NodeDetailPanel({ node, onClose }: NodeDetailPanelProps) {
                         )}
                     </div>
                 </CardContent>
-            </ScrollArea>
+                </ScrollArea>
+            </div>
         </Card>
     );
 }
