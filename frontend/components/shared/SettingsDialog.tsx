@@ -18,7 +18,6 @@ import {
     FormDescription,
     FormField,
     FormItem,
-    FormLabel,
     FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -181,7 +180,6 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                                     name="username"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>用户名</FormLabel>
                                             <FormControl>
                                                 <Input
                                                     placeholder="请输入用户名"
@@ -201,11 +199,10 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                                     name="email"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>邮箱地址（可选）</FormLabel>
                                             <FormControl>
                                                 <Input
                                                     type="email"
-                                                    placeholder="请输入邮箱地址"
+                                                    placeholder="请输入邮箱地址（可选）"
                                                     {...field}
                                                 />
                                             </FormControl>
@@ -260,7 +257,6 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                                     name="currentPassword"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>当前密码</FormLabel>
                                             <FormControl>
                                                 <Input
                                                     type="password"
@@ -278,17 +274,13 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                                     name="newPassword"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>新密码</FormLabel>
                                             <FormControl>
                                                 <Input
                                                     type="password"
-                                                    placeholder="请输入新密码"
+                                                    placeholder="请输入新密码（至少6个字符）"
                                                     {...field}
                                                 />
                                             </FormControl>
-                                            <FormDescription>
-                                                密码长度至少6个字符
-                                            </FormDescription>
                                             <FormMessage />
                                         </FormItem>
                                     )}
@@ -299,7 +291,6 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                                     name="confirmPassword"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>确认新密码</FormLabel>
                                             <FormControl>
                                                 <Input
                                                     type="password"

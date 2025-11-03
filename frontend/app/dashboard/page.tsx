@@ -1007,7 +1007,7 @@ export default function DashboardPage() {
                             placeholder={
                                 pendingFile
                                     ? "添加消息内容（可选）..."
-                                    : "Ask, Search or Chat..."
+                                    : "提问、搜索或聊天..."
                             }
                             className="min-h-[60px] max-h-[200px] resize-none"
                             disabled={isStreaming}

@@ -81,7 +81,7 @@ python -c "from main import get_dual_vector_store; s=get_dual_vector_store(); pr
 ```
 
 **存储架构**：
-- `data/knowledge/` - 知识库（管理员/经理维护，持久化）
+- `data/knowledge_base/` - 系统知识库（管理员/经理维护，持久化）
 - `data/user_uploads/` - 用户上传（所有用户，临时文件）
 - 双向量索引：`data/embeddings/{knowledge_base,user_uploads}.faiss`
 
@@ -1299,7 +1299,10 @@ ML相关数据和模型使用独立的目录结构：
 
 ```
 data/
-├── knowledge/          # 知识库文件（统一存储）
+├── knowledge_base/    # 系统知识库（统一存储）
+│   ├── raw/           # 原始文件
+│   └── processed/     # 处理后的文件
+├── user_uploads/      # 用户上传文件
 │   ├── raw/           # 原始文件
 │   └── processed/     # 处理后的文件
 ├── ml/                # 机器学习相关
@@ -2751,6 +2754,64 @@ RAG_TIMEOUT_SECONDS=25  # 默认25秒
 - `scripts/test_optimizations.py` - 综合测试脚本
 - `main.py` (line 685-702) - 意图判断集成
 - `scripts/db_migrate.py` (enhance-prompts 命令) - 数据库迁移
+
+---
+
+## Chat Interface Enhancement (聊天界面优化)
+
+### 推理步骤与来源显示
+
+系统采用**结构化模板**显示AI推理过程和文档来源，提升可读性和可追溯性。
+
+#### 推理步骤分类
+
+推理步骤自动识别为4种类型，使用不同图标和颜色：
+
+| 类型 | 图标 | 颜色 | 触发条件 |
+|-----|------|------|---------|
+| **思考** | 🧠 Brain | 蓝色 | 默认类型 |
+| **工具调用** | 🔧 Wrench | 紫色 | 包含 `toolName` |
+| **观察结果** | 🔍 Search | 绿色 | 包含 `observation` |
+| **结论** | ✅ CheckCircle | 琥珀色 | 包含"结论/总结" |
+
+#### 文档来源分级
+
+来源按相关度自动分级并排序：
+
+| 相关度 | 标签 | 颜色 | 范围 |
+|--------|------|------|------|
+| **高度相关** | ⭐ | 绿色 | ≥80% |
+| **中度相关** | ⭐ | 黄色 | 60-79% |
+| **低度相关** | ⭐ | 灰色 | <60% |
+
+#### 核心组件
+
+```typescript
+// 推理步骤显示
+<ReasoningStepDisplay 
+  steps={message.reasoningSteps} 
+  defaultExpanded={false} 
+/>
+
+// 文档来源显示
+<SourceDisplay 
+  sources={message.sources} 
+  defaultExpanded={false} 
+/>
+```
+
+**文件位置**：
+- `frontend/components/chat/ReasoningStepDisplay.tsx` - 推理步骤组件
+- `frontend/components/chat/SourceDisplay.tsx` - 来源显示组件
+- `frontend/components/chat/ChatMessage.tsx` - 主消息组件
+
+**特性**：
+- ✅ 自动折叠/展开（点击查看详情）
+- ✅ 工具输入参数格式化显示
+- ✅ 文档内容预览（可展开）
+- ✅ 相关度可视化（星级+百分比）
+- ✅ 降级模式标识（`fallback_mode`）
+- ✅ 深色模式适配
 
 ---
 

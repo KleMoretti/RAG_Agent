@@ -23,7 +23,6 @@ import { useAuthStore } from "@/store/authStore";
 import { authApi } from "@/lib/api/auth";
 import { ROUTES } from "@/lib/constants";
 import { useTranslation } from "@/lib/hooks/useTranslation";
-import { LanguageSwitcher } from "@/components/shared/LanguageSwitcher";
 import { Loader2 } from "lucide-react";
 
 export default function LoginPage() {
@@ -90,9 +89,6 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-secondary dark:from-background dark:to-card p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <div className="flex justify-end mb-2">
-            <LanguageSwitcher />
-          </div>
           <CardTitle className="text-2xl font-semibold text-center">
             {t.auth.loginTitle}
           </CardTitle>
@@ -109,7 +105,6 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="username">{t.auth.username}</Label>
               <Input
                 id="username"
                 placeholder={t.auth.username}
@@ -124,7 +119,6 @@ export default function LoginPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">{t.auth.password}</Label>
               <Input
                 id="password"
                 type="password"

@@ -416,17 +416,20 @@ def list_files(
     try:
         from pathlib import Path
         import os
+        from config.settings import get_settings
+        
+        settings = get_settings()
 
         # 获取文件目录 - 支持双向量存储架构
-        kb_raw_dir = Path("data/knowledge/raw")
-        user_raw_dir = Path("data/user_uploads/raw")
-        
+        kb_raw_dir = Path(settings.knowledge_base_raw_dir)
+        user_raw_dir = Path(settings.user_uploads_raw_dir)
+
         # 获取所有文件
         all_files = []
-        
+
         # 处理知识库文件
         if kb_raw_dir.exists():
-            kb_processed_dir = Path("data/knowledge/processed")
+            kb_processed_dir = Path(settings.knowledge_base_processed_dir)
             for file_path in kb_raw_dir.glob("*"):
                 if file_path.is_file():
                     stat = file_path.stat()
@@ -456,7 +459,7 @@ def list_files(
         
         # 处理用户上传文件
         if user_raw_dir.exists():
-            user_processed_dir = Path("data/user_uploads/processed")
+            user_processed_dir = Path(settings.user_uploads_processed_dir)
             for file_path in user_raw_dir.glob("*"):
                 if file_path.is_file():
                     stat = file_path.stat()
@@ -1064,18 +1067,31 @@ def get_system_stats(
     """获取系统统计信息"""
     try:
         from pathlib import Path
+        from config.settings import get_settings
+        
+        settings = get_settings()
 
         # 用户统计
         total_users = db.query(User).count()
         active_users = db.query(User).filter(User.is_active == True).count()
         admin_users = db.query(User).filter(User.role == UserRole.ADMIN).count()
 
-        # 文件统计
-        files_dir = Path("data/knowledge/processed")
+        # 文件统计 - 同时统计知识库和用户上传文件
         file_count = 0
         total_size = 0
-        if files_dir.exists():
-            for file_path in files_dir.glob("*"):
+        
+        # 统计知识库文件（从 raw 目录）
+        kb_raw_dir = Path(settings.knowledge_base_raw_dir)
+        if kb_raw_dir.exists():
+            for file_path in kb_raw_dir.glob("*"):
+                if file_path.is_file():
+                    file_count += 1
+                    total_size += file_path.stat().st_size
+        
+        # 统计用户上传文件（从 raw 目录）
+        user_raw_dir = Path(settings.user_uploads_raw_dir)
+        if user_raw_dir.exists():
+            for file_path in user_raw_dir.glob("*"):
                 if file_path.is_file():
                     file_count += 1
                     total_size += file_path.stat().st_size

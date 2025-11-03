@@ -3,18 +3,17 @@
 import * as React from "react";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ChevronDown, ChevronUp, FileText, User, Bot } from "lucide-react";
+import { FileText, User, Bot } from "lucide-react";
 import type { ChatMessage as ChatMessageType } from "@/lib/types/api";
 import { MarkdownContent } from "./MarkdownContent";
+import { ReasoningStepDisplay } from "./ReasoningStepDisplay";
+import { SourceDisplay } from "./SourceDisplay";
 
 interface ChatMessageProps {
     message: ChatMessageType;
 }
 
 export function ChatMessage({ message }: ChatMessageProps) {
-    const [showSources, setShowSources] = React.useState(false);
-    const [showReasoning, setShowReasoning] = React.useState(false);
-
     const isUser = message.role === "user";
     const hasAttachments =
         message.attachments && message.attachments.length > 0;
@@ -82,100 +81,14 @@ export function ChatMessage({ message }: ChatMessageProps) {
                     )}
                 </Card>
 
-                {/* 来源显示 */}
+                {/* 来源显示 - 使用新组件 */}
                 {!isUser && hasSources && (
-                    <div className="w-full">
-                        <button
-                            onClick={() => setShowSources(!showSources)}
-                            className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                            {showSources ? (
-                                <ChevronUp className="h-3 w-3" />
-                            ) : (
-                                <ChevronDown className="h-3 w-3" />
-                            )}
-                            <span>{message.sources!.length} 个来源</span>
-                        </button>
-
-                        {showSources && (
-                            <div className="mt-2 space-y-2">
-                                {message.sources!.map((source, idx) => (
-                                    <Card
-                                        key={idx}
-                                        className="p-2 bg-background/50"
-                                    >
-                                        <div className="flex items-start gap-2">
-                                            <FileText className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-                                            <div className="flex-1 min-w-0">
-                                                <div className="text-xs font-medium truncate">
-                                                    {source.fileName}
-                                                </div>
-                                                {source.content && (
-                                                    <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                                                        {source.content}
-                                                    </div>
-                                                )}
-                                                {source.relevanceScore !==
-                                                    undefined && (
-                                                    <div className="text-xs text-muted-foreground mt-1">
-                                                        相关度:{" "}
-                                                        {(
-                                                            source.relevanceScore *
-                                                            100
-                                                        ).toFixed(1)}
-                                                        %
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </Card>
-                                ))}
-                            </div>
-                        )}
-                    </div>
+                    <SourceDisplay sources={message.sources!} defaultExpanded={false} />
                 )}
 
-                {/* 推理步骤显示 */}
+                {/* 推理步骤显示 - 使用新组件 */}
                 {!isUser && hasReasoning && (
-                    <div className="w-full">
-                        <button
-                            onClick={() => setShowReasoning(!showReasoning)}
-                            className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                            {showReasoning ? (
-                                <ChevronUp className="h-3 w-3" />
-                            ) : (
-                                <ChevronDown className="h-3 w-3" />
-                            )}
-                            <span>
-                                {message.reasoningSteps!.length} 个推理步骤
-                            </span>
-                        </button>
-
-                        {showReasoning && (
-                            <div className="mt-2 space-y-2">
-                                {message.reasoningSteps!.map((step, idx) => (
-                                    <Card
-                                        key={idx}
-                                        className="p-2 bg-background/50"
-                                    >
-                                        <div className="space-y-1">
-                                            {step.thought && (
-                                                <div className="text-xs text-foreground">
-                                                    思考: {step.thought}
-                                                </div>
-                                            )}
-                                            {step.toolName && (
-                                                <div className="text-xs font-medium text-primary">
-                                                    工具: {step.toolName}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </Card>
-                                ))}
-                            </div>
-                        )}
-                    </div>
+                    <ReasoningStepDisplay steps={message.reasoningSteps!} defaultExpanded={false} />
                 )}
             </div>
 
