@@ -128,44 +128,66 @@ export default function EquipmentPage() {
                     <CardDescription>最近的设备问题和维护任务</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="space-y-4">
-                        {recentIssues.map((issue) => (
+                    <div className="space-y-2">
+                        {recentIssues.map((issue, index) => (
                             <div
                                 key={issue.id}
-                                className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0"
+                                className={`flex items-center justify-between p-3 rounded-lg transition-colors ${
+                                    // 根据严重程度添加背景色
+                                    issue.severity === "高"
+                                        ? "bg-red-50/50 hover:bg-red-50 dark:bg-red-950/20 dark:hover:bg-red-950/30"
+                                        : issue.severity === "中"
+                                          ? "bg-yellow-50/50 hover:bg-yellow-50 dark:bg-yellow-950/20 dark:hover:bg-yellow-950/30"
+                                          : index % 2 === 0
+                                            ? "bg-muted/30 hover:bg-muted/50"
+                                            : "hover:bg-muted/30"
+                                }`}
                             >
-                                <div className="space-y-1">
-                                    <div className="flex items-center gap-2">
-                                        <p className="font-medium">
-                                            {issue.equipment}
-                                        </p>
-                                        <span
-                                            className={`text-xs px-2 py-0.5 rounded ${
-                                                issue.severity === "高"
-                                                    ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                                                    : issue.severity === "中"
-                                                      ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
-                                                      : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                                            }`}
-                                        >
-                                            {issue.severity}
-                                        </span>
+                                {/* 左侧：设备名称 + 故障描述 + 时间（紧凑排列） */}
+                                <div className="flex items-center gap-3 flex-1 min-w-0">
+                                    {/* 设备名称 */}
+                                    <div className="font-medium text-sm shrink-0">
+                                        {issue.equipment}
                                     </div>
-                                    <p className="text-sm text-muted-foreground">
+                                    
+                                    {/* 分隔符 */}
+                                    <div className="h-4 w-px bg-border shrink-0" />
+                                    
+                                    {/* 故障描述 */}
+                                    <div className="text-sm text-muted-foreground truncate">
                                         {issue.issue}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">
+                                    </div>
+                                    
+                                    {/* 时间 */}
+                                    <div className="text-xs text-muted-foreground shrink-0 flex items-center gap-1">
+                                        <Clock className="h-3 w-3" />
                                         {issue.time}
-                                    </p>
+                                    </div>
                                 </div>
-                                <div className="text-right">
+
+                                {/* 右侧：严重程度 + 状态 */}
+                                <div className="flex items-center gap-2 shrink-0">
+                                    {/* 严重程度标签 */}
                                     <span
-                                        className={`text-sm font-medium ${
+                                        className={`text-xs px-2 py-1 rounded-md font-medium ${
+                                            issue.severity === "高"
+                                                ? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
+                                                : issue.severity === "中"
+                                                  ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-300"
+                                                  : "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300"
+                                        }`}
+                                    >
+                                        {issue.severity}
+                                    </span>
+                                    
+                                    {/* 状态标签 */}
+                                    <span
+                                        className={`text-sm font-medium px-3 py-1 rounded-md ${
                                             issue.status === "已完成"
-                                                ? "text-green-600 dark:text-green-400"
+                                                ? "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300"
                                                 : issue.status === "处理中"
-                                                  ? "text-blue-600 dark:text-blue-400"
-                                                  : "text-yellow-600 dark:text-yellow-400"
+                                                  ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
+                                                  : "bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300"
                                         }`}
                                     >
                                         {issue.status}

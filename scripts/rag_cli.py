@@ -10,6 +10,13 @@
 5. 系统信息（info）- 查看 RAG 系统状态
 6. 导出数据（export）- 导出元数据用于分析
 
+文件存储结构：
+- data/knowledge_base/raw/       - 系统知识库原始文件
+- data/knowledge_base/processed/ - 系统知识库处理后文件
+- data/user_uploads/raw/         - 用户上传原始文件
+- data/user_uploads/processed/   - 用户上传处理后文件
+- data/embeddings/               - 向量索引（知识库 + 用户上传合并）
+
 使用方法:
     python scripts/rag_cli.py build --help
     python scripts/rag_cli.py search "钢铁生产"
@@ -36,7 +43,7 @@ from src.data_processing.embedder import Embedder
 from src.retrieval.vector_store_fast import VectorStoreFast
 from src.retrieval.indexer import Indexer
 from config.logging_config import setup_logging
-from scripts.paths import DATA_DIRS, ensure_data_dirs
+from scripts.paths import DATA_DIRS, ensure_data_dirs, get_processed_dir_for_file
 from src.api.db import get_db, db_context
 from src.api.models import Agent, User, SystemPrompt
 
@@ -91,8 +98,8 @@ class RAGSystemManager:
         # 创建快速向量存储（自动选择索引类型）
         self.store = VectorStoreFast(
             dim=self.embedder.dim,
-            index_path=DATA_DIRS['embeddings'] / "index.faiss",
-            metadata_path=DATA_DIRS['embeddings'] / "index.meta.jsonl",
+            index_path=DATA_DIRS['embeddings'] / "knowledge_base.faiss",
+            metadata_path=DATA_DIRS['embeddings'] / "knowledge_base.meta.jsonl",
             normalize=False,
             use_ivf=None,  # 自动判断：<10k用Flat，>=10k自动升级IVF
             nlist=100,
@@ -186,17 +193,46 @@ class RAGSystemManager:
     
     def _get_processed_files(self) -> set:
         """获取已处理文件列表"""
-        processed_file = DATA_DIRS['processed'] / 'processed_files.json'
-        if processed_file.exists():
-            with open(processed_file, 'r', encoding='utf-8') as f:
-                return set(json.load(f))
-        return set()
+        # 合并知识库和用户上传的已处理文件
+        processed_files = set()
+        
+        # 知识库已处理文件
+        kb_processed_file = DATA_DIRS['knowledge_base/processed'] / 'processed_files.json'
+        if kb_processed_file.exists():
+            with open(kb_processed_file, 'r', encoding='utf-8') as f:
+                processed_files.update(json.load(f))
+        
+        # 用户上传已处理文件
+        user_processed_file = DATA_DIRS['user_uploads/processed'] / 'processed_files.json'
+        if user_processed_file.exists():
+            with open(user_processed_file, 'r', encoding='utf-8') as f:
+                processed_files.update(json.load(f))
+        
+        return processed_files
     
     def _save_processed_files(self, processed_files: set):
-        """保存已处理文件列表"""
-        processed_file = DATA_DIRS['processed'] / 'processed_files.json'
-        with open(processed_file, 'w', encoding='utf-8') as f:
-            json.dump(list(processed_files), f, ensure_ascii=False, indent=2)
+        """保存已处理文件列表（分别保存到知识库和用户上传）"""
+        kb_files = set()
+        user_files = set()
+        
+        # 分类文件
+        for file_path in processed_files:
+            if 'knowledge_base' in file_path:
+                kb_files.add(file_path)
+            elif 'user_uploads' in file_path:
+                user_files.add(file_path)
+        
+        # 保存知识库文件列表
+        if kb_files:
+            kb_processed_file = DATA_DIRS['knowledge_base/processed'] / 'processed_files.json'
+            with open(kb_processed_file, 'w', encoding='utf-8') as f:
+                json.dump(list(kb_files), f, ensure_ascii=False, indent=2)
+        
+        # 保存用户上传文件列表
+        if user_files:
+            user_processed_file = DATA_DIRS['user_uploads/processed'] / 'processed_files.json'
+            with open(user_processed_file, 'w', encoding='utf-8') as f:
+                json.dump(list(user_files), f, ensure_ascii=False, indent=2)
     
     def build(self, rebuild: bool = False, supported_formats: tuple = None) -> Dict[str, Any]:
         """构建 RAG 系统"""
@@ -211,8 +247,8 @@ class RAGSystemManager:
             logging.info("重建模式：清空现有索引")
             self.store = VectorStoreFast(
                 dim=self.embedder.dim,
-                index_path=DATA_DIRS['embeddings'] / "index.faiss",
-                metadata_path=DATA_DIRS['embeddings'] / "index.meta.jsonl",
+                index_path=DATA_DIRS['embeddings'] / "knowledge_base.faiss",
+                metadata_path=DATA_DIRS['knowledge_base/processed'] / "knowledge_base.meta.jsonl",
                 normalize=False,
                 use_ivf=None,  # 自动判断：<10k用Flat，>=10k自动升级IVF
                 nlist=100,
@@ -228,12 +264,20 @@ class RAGSystemManager:
         
         processed_files = self._get_processed_files()
         
-        # 扫描文件
-        all_files = list(DATA_DIRS['raw'].rglob('*'))
+        # 扫描文件（知识库 + 用户上传）
+        kb_files = list(DATA_DIRS['knowledge_base/raw'].rglob('*'))
+        user_files = list(DATA_DIRS['user_uploads/raw'].rglob('*'))
+        all_files = kb_files + user_files
+        
         target_files = [f for f in all_files if f.suffix.lower() in supported_formats]
         self.stats['total_files'] = len(target_files)
         
+        kb_count = len([f for f in kb_files if f.suffix.lower() in supported_formats])
+        user_count = len([f for f in user_files if f.suffix.lower() in supported_formats])
+        
         print(f"📁 发现 {self.stats['total_files']} 个支持的文件")
+        print(f"   📚 知识库: {kb_count} 个")
+        print(f"   👤 用户上传: {user_count} 个")
         
         # 处理文件
         for file_path in target_files:
@@ -307,8 +351,11 @@ class RAGSystemManager:
         if not cleaned_text.strip():
             return False
         
+        # 根据文件来源确定保存路径
+        processed_dir = get_processed_dir_for_file(file_path)
+        
         # 保存处理后的文本
-        processed_file = DATA_DIRS['processed'] / f"{file_path.stem}.txt"
+        processed_file = processed_dir / f"{file_path.stem}.txt"
         processed_file.write_text(cleaned_text, encoding='utf-8')
         
         # 分块、嵌入和索引
@@ -380,8 +427,8 @@ class RAGSystemManager:
             'chunk_size': self.chunk_size,
             'chunk_overlap': self.chunk_overlap,
             'min_chunk_size': self.min_chunk_size,
-            'index_path': str(DATA_DIRS['embeddings'] / "index.faiss"),
-            'metadata_path': str(DATA_DIRS['embeddings'] / "index.meta.jsonl"),
+            'index_path': str(DATA_DIRS['embeddings'] / "knowledge_base.faiss"),
+            'metadata_path': str(DATA_DIRS['embeddings'] / "knowledge_base.meta.jsonl"),
         }
         
         # 统计文件类型分布
