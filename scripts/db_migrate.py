@@ -322,6 +322,37 @@ def add_market_tables():
         raise
 
 
+def add_workflow_table():
+    """添加工艺流程管理表"""
+    print("🏭 添加工艺流程管理表...")
+    print("=" * 60)
+    
+    try:
+        from src.api.models import ProcessWorkflow
+        
+        # 创建工艺流程表
+        ProcessWorkflow.__table__.create(engine, checkfirst=True)
+        
+        print("✅ 工艺流程表创建成功！")
+        print("\n📊 已创建表:")
+        print("  - process_workflow (工艺流程模板)")
+        print("\n💡 功能说明:")
+        print("  - 支持保存自定义工艺流程")
+        print("  - 节点增删改自动重排布局")
+        print("  - 支持基于模板创建和更新")
+        print("\n💡 使用示例:")
+        print("  1. 访问 http://localhost:3000/dashboard/workflow")
+        print("  2. 选择一个工艺模板")
+        print("  3. 点击「编辑模式」按钮")
+        print("  4. 添加/编辑/删除节点")
+        print("  5. 点击「保存」按钮保存到数据库")
+        print("  6. 下次进入编辑模式时会自动加载已保存的版本")
+        
+    except Exception as e:
+        logger.error(f"❌ 添加工艺流程表失败: {e}")
+        raise
+
+
 def check_database_status():
     """检查数据库状态"""
     print("🔍 数据库状态检查")
@@ -585,6 +616,7 @@ def list_migrations():
         ("add-vocabulary", "添加专业词汇表"),
         ("add-prompts", "添加 Prompt 管理表"),
         ("add-market", "添加市场数据表"),
+        ("add-workflow", "添加工艺流程管理表"),
         ("enhance-prompts", "增强 Agent Prompt（使回答更有差异性）"),
         ("status", "检查数据库状态"),
     ]
@@ -618,6 +650,9 @@ def main():
   # 添加市场数据表
   python scripts/db_migrate.py add-market
   
+  # 添加工艺流程管理表
+  python scripts/db_migrate.py add-workflow
+  
   # 增强 Agent Prompt（使回答更有差异性）
   python scripts/db_migrate.py enhance-prompts
   
@@ -631,8 +666,8 @@ def main():
     
     parser.add_argument('command', 
                        choices=['reset', 'add-presets', 'add-vocabulary', 
-                               'add-prompts', 'add-market', 'enhance-prompts',
-                               'status', 'list'],
+                               'add-prompts', 'add-market', 'add-workflow', 
+                               'enhance-prompts', 'status', 'list'],
                        help='迁移命令')
     parser.add_argument('--force', action='store_true',
                        help='强制执行（跳过确认）')
@@ -654,6 +689,7 @@ def main():
         'add-vocabulary': add_vocabulary_table,
         'add-prompts': add_prompt_tables,
         'add-market': add_market_tables,
+        'add-workflow': add_workflow_table,
         'enhance-prompts': enhance_prompts,
         'status': check_database_status,
         'list': list_migrations,

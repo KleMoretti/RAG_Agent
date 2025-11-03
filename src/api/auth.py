@@ -207,6 +207,13 @@ def require_admin(user: User = Depends(_get_current_user)) -> User:
         raise HTTPException(status_code=403, detail="需要管理员权限")
     return user
 
+
+def require_manager_or_admin(user: User = Depends(_get_current_user)) -> User:
+    """要求管理员或经理权限"""
+    if user.role not in [UserRole.ADMIN, UserRole.MANAGER]:
+        raise HTTPException(status_code=403, detail="需要管理员或经理权限")
+    return user
+
 # 为了兼容性，提供不带下划线的别名
 get_current_user = _get_current_user
 

@@ -636,3 +636,33 @@ class MLModel(Base):
         Index("idx_is_active", "is_active"),
         {"extend_existing": True},
     )
+
+
+class ProcessWorkflow(Base):
+    """工艺流程模板表"""
+
+    __tablename__ = "process_workflow"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False, index=True)  # 流程名称
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)  # 流程描述
+    template_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)  # 模板ID（如 bf-bof）
+    is_custom: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)  # 是否为自定义流程
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)  # 是否激活
+    nodes: Mapped[dict] = mapped_column(JSON, nullable=False)  # 节点列表（JSON格式）
+    edges: Mapped[dict] = mapped_column(JSON, nullable=False)  # 连线列表（JSON格式）
+    workflow_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # 其他元数据
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+    created_by: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("user.id"), nullable=True
+    )
+
+    # 索引
+    __table_args__ = (
+        Index("idx_template_active", "template_id", "is_active"),
+        Index("idx_custom_active", "is_custom", "is_active"),
+        {"extend_existing": True},
+    )

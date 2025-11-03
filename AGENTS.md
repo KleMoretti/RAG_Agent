@@ -63,6 +63,7 @@ python scripts/db_migrate.py reset          # 重置数据库
 python scripts/db_migrate.py add-presets   # 添加预设问题表
 python scripts/db_migrate.py add-prompts   # 添加 Prompt 管理表
 python scripts/db_migrate.py add-market    # 添加市场数据表
+python scripts/db_migrate.py add-workflow  # 添加工艺流程管理表
 python scripts/db_migrate.py status        # 查看数据库状态
 python scripts/db_migrate.py list          # 列出所有可用迁移
 ```
@@ -1919,7 +1920,11 @@ http://localhost:3000/dashboard/workflow
   - 🎯 **在指定节点之前**：选择目标节点，新节点插入其前面，自动调整连线
   - 🎯 **在指定节点之后**：选择目标节点，新节点插入其后面，自动调整连线
 - 添加工艺参数（参数名、标准值、单位）
-- 点击"添加节点"保存（系统自动计算坐标、创建连接）
+- 点击"添加节点"保存
+- **系统自动操作**：
+  - ✅ 根据插入位置创建连线关系
+  - ✅ 自动重排整个流程图（层次布局算法）
+  - ✅ 所有节点坐标重新计算，保持美观整洁
 
 **编辑节点**：
 - 方法1：列表视图 → 点击节点右侧的编辑按钮 ✏️
@@ -1943,11 +1948,55 @@ http://localhost:3000/dashboard/workflow
 - **自动触发**：添加或删除节点后自动刷新布局
 
 **保存和退出**：
-- **保存**：点击"保存"按钮，保存自定义工艺流程
+- **保存**：点击"保存"按钮，保存自定义工艺流程到数据库
+  - ✅ 首次保存时创建新记录
+  - ✅ 再次编辑并保存时更新现有记录
+  - ✅ 保存后按钮显示为"更新"
+  - ✅ 下次进入编辑模式时自动加载已保存的版本
 - **重置**：点击"重置"按钮，放弃所有修改
 - **退出编辑**：点击"退出编辑"按钮，返回只读模式
 
 📚 **详细指南**: 查看 [`docs/WORKFLOW_NODE_EDITOR_GUIDE.md`](../docs/WORKFLOW_NODE_EDITOR_GUIDE.md)
+
+#### 6. 数据库持久化 🆕
+
+**首次运行**：
+```bash
+# 创建工艺流程管理表
+python scripts/db_migrate.py add-workflow
+```
+
+**数据存储**：
+- **表名**: `process_workflow`
+- **存储内容**: 节点列表、连线关系、工艺元数据（JSON格式）
+- **字段说明**: 
+  - `nodes`: 节点列表（JSON）
+  - `edges`: 连线关系（JSON）
+  - `workflow_metadata`: 工艺元数据（JSON，包含原始模板ID、碳排放范围、修改时间等）
+- **关联模板**: 保存时记录基于哪个模板创建（template_id）
+- **版本管理**: 每次保存都更新 `updated_at` 时间戳
+
+**工作流程**：
+1. 用户在编辑模式中修改工艺流程（增删改节点）
+2. 点击"保存"按钮
+3. 前端调用 `/api/workflow/workflows` API
+4. 后端保存到 `process_workflow` 表
+5. 下次进入编辑模式时自动加载已保存的版本
+
+**API 端点**：
+- `POST /api/workflow/workflows` - 创建自定义工艺流程
+- `GET /api/workflow/workflows` - 获取工艺流程列表
+- `GET /api/workflow/workflows/{id}` - 获取单个工艺流程详情
+- `PUT /api/workflow/workflows/{id}` - 更新工艺流程
+- `DELETE /api/workflow/workflows/{id}` - 删除工艺流程
+
+**权限控制**：
+| 操作 | ADMIN | MANAGER | TECHNICIAN |
+|-----|-------|---------|------------|
+| 查看流程 | ✅ | ✅ | ✅ |
+| 编辑流程 | ✅ | ✅ | ❌ |
+| 保存流程 | ✅ | ✅ | ❌ |
+| 删除流程 | ✅ | ✅ | ❌ |
 
 ### 工艺流程对比
 
@@ -2122,16 +2171,16 @@ interface ProcessParameter {
 11. ✅ **可视化参数编辑对话框** 🆕：批量管理工艺参数
 12. ✅ **右侧详情面板滚动** 🆕：参数过多时可滚动查看
 13. ✅ **对话框内容滚动** 🆕：参数过多时对话框内可滚动查看
+14. ✅ **数据库持久化** 🎉：保存自定义工艺流程到数据库，自动加载已保存的版本
 
 #### 待开发 🔄
 1. 🔄 **拖拽布局**: 通过拖拽调整节点位置
-2. 🔄 **数据库持久化**: 保存自定义工艺流程到数据库
-3. 🔄 **模板管理**: 保存和加载自定义工艺流程模板
-4. 🔄 **版本控制**: 记录工艺流程的修改历史
-5. 🔄 **工艺文档关联**: 从知识库筛选工艺文档，绑定到节点
-6. 🔄 **智能工艺助手**: 集成工艺专家 Agent，提供工艺咨询
-7. 🔄 **实时数据接入**: 如果有 MES/ERP 系统，显示实时参数值
-8. 🔄 **参数告警**: 参数超出范围时高亮显示并推送通知
+2. 🔄 **模板管理UI**: 在界面中管理和切换多个自定义工艺流程模板
+3. 🔄 **版本控制**: 记录工艺流程的修改历史，支持回滚
+4. 🔄 **工艺文档关联**: 从知识库筛选工艺文档，绑定到节点
+5. 🔄 **智能工艺助手**: 集成工艺专家 Agent，提供工艺咨询
+6. 🔄 **实时数据接入**: 如果有 MES/ERP 系统，显示实时参数值
+7. 🔄 **参数告警**: 参数超出范围时高亮显示并推送通知
 
 #### 高级功能 🚀
 1. 🚀 **知识图谱可视化**: 展示工艺参数之间的关系网络
@@ -2767,7 +2816,7 @@ RAG_TIMEOUT_SECONDS=25  # 默认25秒
    <Button variant="primary" size="lg" icon={<SaveIcon />}>
      Save Changes
    </Button>
-   
+
    // ❌ Bad: Non-reusable, hardcoded
    <button className="bg-blue-500 text-white px-4 py-2">
      Save Changes
@@ -2816,7 +2865,7 @@ RAG_TIMEOUT_SECONDS=25  # 默认25秒
      username: string;
      role: UserRole;
    }
-   
+
    // ✅ Import from single source of truth
    import type { User } from '@/lib/types/api';
    ```
@@ -2835,7 +2884,7 @@ RAG_TIMEOUT_SECONDS=25  # 默认25秒
    ├── authStore.ts      // Authentication state
    ├── chatStore.ts      // Chat messages & sessions
    └── uiStore.ts        // UI preferences
-   
+
    // ❌ Bad: Monolithic store
    store/index.ts        // Everything in one file
    ```
@@ -2848,7 +2897,7 @@ RAG_TIMEOUT_SECONDS=25  # 默认25秒
     // lib/api/client.ts
     const apiClient = axios.create({ baseURL: API_URL });
     apiClient.interceptors.request.use(addAuthToken);
-    
+
     // ❌ Bad: Scattered fetch calls throughout components
     ```
 
@@ -2898,7 +2947,7 @@ RAG_TIMEOUT_SECONDS=25  # 默认25秒
     const processedData = useMemo(() => 
       heavyCalculation(rawData), [rawData]
     );
-    
+
     // ✅ Good: Prevent unnecessary re-renders
     const MemoizedChart = memo(ExpensiveChart);
     ```
@@ -2980,7 +3029,7 @@ RAG_TIMEOUT_SECONDS=25  # 默认25秒
     fix(upload): resolve file size validation error
     refactor(api): extract auth logic to middleware
     docs(readme): update installation instructions
-    
+
     # ❌ Bad commit messages
     "fix bug"
     "update"
@@ -3029,7 +3078,7 @@ RAG_TIMEOUT_SECONDS=25  # 默认25秒
     <button aria-label="Close dialog" onClick={onClose}>
       <X />
     </button>
-    
+
     // ❌ Bad: Icon-only button without label
     <button onClick={onClose}>
       <X />
@@ -3048,12 +3097,12 @@ RAG_TIMEOUT_SECONDS=25  # 默认25秒
     ```typescript
     // lib/env.ts
     import { z } from 'zod';
-    
+
     const envSchema = z.object({
       NEXT_PUBLIC_API_URL: z.string().url(),
       DATABASE_URL: z.string(),
     });
-    
+
     export const env = envSchema.parse(process.env);
     ```
 

@@ -40,6 +40,14 @@ import {
     RotateCcw,
     LayoutGrid,
 } from "lucide-react";
+import { toast } from "sonner";
+import {
+    createWorkflow,
+    listWorkflows,
+    updateWorkflow,
+    getWorkflow,
+    type WorkflowResponse,
+} from "@/lib/api/workflow";
 
 export default function WorkflowPage() {
     const [selectedTemplate, setSelectedTemplate] = React.useState<ProcessTemplate>(
@@ -57,16 +65,102 @@ export default function WorkflowPage() {
     const [editorMode, setEditorMode] = React.useState<"add" | "edit">("add");
     const [editingNode, setEditingNode] = React.useState<ProcessNode | null>(null);
     
-    // 当前显示的节点和连线（编辑模式使用自定义数据，否则使用模板数据）
-    const currentNodes = isEditMode ? customNodes : selectedTemplate.nodes;
-    const currentEdges = isEditMode ? customEdges : selectedTemplate.edges;
+    // 为每个模板维护独立的 savedWorkflowId（templateId -> workflowId 映射）
+    const [savedWorkflowMap, setSavedWorkflowMap] = React.useState<Record<string, number>>(() => {
+        if (typeof window !== "undefined") {
+            const saved = localStorage.getItem("workflow_saved_map");
+            
+            // 清理旧版本的单个 workflow_saved_id（迁移到新的 map 结构）
+            const oldSavedId = localStorage.getItem("workflow_saved_id");
+            if (oldSavedId && !saved) {
+                localStorage.removeItem("workflow_saved_id");
+                console.log("🔄 已迁移旧版本的 workflow_saved_id 到新的 map 结构");
+            }
+            
+            return saved ? JSON.parse(saved) : {};
+        }
+        return {};
+    });
+    
+    const [isSaving, setIsSaving] = React.useState(false); // 保存中状态
+    const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false); // 是否有未保存的更改
+    
+    // 获取当前模板的 savedWorkflowId
+    const savedWorkflowId = savedWorkflowMap[selectedTemplate.id] || null;
+    
+    // 持久化 savedWorkflowMap 到 localStorage
+    React.useEffect(() => {
+        if (typeof window !== "undefined") {
+            localStorage.setItem("workflow_saved_map", JSON.stringify(savedWorkflowMap));
+            
+            // 调试信息：显示所有模板的保存状态
+            const savedCount = Object.keys(savedWorkflowMap).length;
+            if (savedCount > 0) {
+                console.log(`📊 已保存 ${savedCount} 个模板的自定义流程:`, savedWorkflowMap);
+            }
+        }
+    }, [savedWorkflowMap]);
+
+    // 切换模板或页面加载时，自动加载该模板的已保存流程
+    React.useEffect(() => {
+        const templateWorkflowId = savedWorkflowMap[selectedTemplate.id];
+        
+        if (templateWorkflowId) {
+            // 该模板有已保存的流程，从数据库加载
+            const loadSavedWorkflow = async () => {
+                try {
+                    const workflow = await getWorkflow(templateWorkflowId);
+                    setCustomNodes(workflow.nodes);
+                    setCustomEdges(workflow.edges);
+                    console.log(`✅ 已加载模板「${selectedTemplate.name}」的自定义流程 ID:${templateWorkflowId}`, {
+                        nodes: workflow.nodes.length,
+                        edges: workflow.edges.length,
+                    });
+                } catch (error) {
+                    console.error("加载保存的工艺流程失败:", error);
+                    // 如果加载失败，从 map 中移除该条目
+                    setSavedWorkflowMap((prev) => {
+                        const newMap = { ...prev };
+                        delete newMap[selectedTemplate.id];
+                        return newMap;
+                    });
+                    setCustomNodes([]);
+                    setCustomEdges([]);
+                    toast.error("加载自定义流程失败，已切换到模板视图");
+                }
+            };
+            loadSavedWorkflow();
+        } else {
+            // 该模板没有已保存的流程，清空自定义数据
+            setCustomNodes([]);
+            setCustomEdges([]);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedTemplate.id]); // 当模板切换时执行
+    
+    // 当前显示的节点和连线
+    // 优先级：1. 编辑模式显示 customNodes  2. 已保存的流程显示 customNodes  3. 否则显示模板数据
+    const currentNodes = (isEditMode || savedWorkflowId) ? customNodes : selectedTemplate.nodes;
+    const currentEdges = (isEditMode || savedWorkflowId) ? customEdges : selectedTemplate.edges;
 
     // 处理工艺流程切换
     const handleTemplateChange = (templateId: string) => {
         const template = getTemplateById(templateId);
         if (template) {
+            // 如果正在编辑且有未保存的更改，提示用户
+            if (isEditMode && hasUnsavedChanges) {
+                if (!confirm("当前有未保存的更改，切换模板将丢失这些更改，是否继续？")) {
+                    return; // 用户取消
+                }
+            }
+
             setSelectedTemplate(template);
-            setSelectedNode(null); // 清除选中的节点
+            setSelectedNode(null);
+            setIsEditMode(false);
+            setHasUnsavedChanges(false);
+            toast.info(`已切换到「${template.name}」模板`);
+            
+            // 自动加载该模板的已保存流程（在 useEffect 中处理）
         }
     };
 
@@ -80,17 +174,46 @@ export default function WorkflowPage() {
     const handleZoomOut = () => setZoom((prev) => Math.max(prev - 10, 50));
     const handleResetZoom = () => setZoom(100);
 
-    // 进入编辑模式
-    const handleEnterEditMode = () => {
-        setCustomNodes([...selectedTemplate.nodes]);
-        setCustomEdges([...selectedTemplate.edges]);
+    // 进入编辑模式（加载已保存的版本或模板数据）
+    const handleEnterEditMode = async () => {
+        // 如果有已保存的工艺流程，尝试加载它
+        if (savedWorkflowId) {
+            try {
+                const workflow = await getWorkflow(savedWorkflowId);
+                setCustomNodes(workflow.nodes);
+                setCustomEdges(workflow.edges);
+                toast.info("已加载保存的工艺流程");
+            } catch (error) {
+                console.error("加载保存的工艺流程失败:", error);
+                toast.warning("无法加载保存的版本，使用模板数据");
+                setCustomNodes([...selectedTemplate.nodes]);
+                setCustomEdges([...selectedTemplate.edges]);
+                // 从 map 中移除当前模板的无效 ID
+                setSavedWorkflowMap((prev) => {
+                    const newMap = { ...prev };
+                    delete newMap[selectedTemplate.id];
+                    return newMap;
+                });
+            }
+        } else {
+            // 没有保存的版本，使用模板数据
+            setCustomNodes([...selectedTemplate.nodes]);
+            setCustomEdges([...selectedTemplate.edges]);
+        }
         setIsEditMode(true);
     };
 
     // 退出编辑模式
     const handleExitEditMode = () => {
+        // 检查是否有未保存的更改
+        if (hasUnsavedChanges) {
+            if (!confirm("您有未保存的更改，确定要退出编辑模式吗？")) {
+                return;
+            }
+        }
         setIsEditMode(false);
         setSelectedNode(null);
+        setHasUnsavedChanges(false);
     };
 
     // 重置编辑
@@ -99,13 +222,74 @@ export default function WorkflowPage() {
             setCustomNodes([...selectedTemplate.nodes]);
             setCustomEdges([...selectedTemplate.edges]);
             setSelectedNode(null);
+            setHasUnsavedChanges(false);
+            toast.info("已重置为模板数据");
         }
     };
 
-    // 保存编辑（这里可以扩展为保存到数据库）
-    const handleSaveEdit = () => {
-        alert(`已保存自定义工艺流程！\n节点数: ${customNodes.length}`);
-        setIsEditMode(false);
+    // 保存编辑到数据库
+    const handleSaveEdit = async () => {
+        if (customNodes.length === 0) {
+            toast.error("工艺流程不能为空");
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            const workflowName = `${selectedTemplate.name} (自定义)`;
+            const workflowData = {
+                name: workflowName,
+                description: `基于 ${selectedTemplate.name} 创建的自定义工艺流程`,
+                template_id: selectedTemplate.id,
+                nodes: customNodes,
+                edges: customEdges,
+                workflow_metadata: {
+                    original_template: selectedTemplate.id,
+                    co2_range: selectedTemplate.co2Range,
+                    modified_at: new Date().toISOString(),
+                    node_count: customNodes.length,
+                    edge_count: customEdges.length,
+                },
+            };
+
+            if (savedWorkflowId) {
+                // 更新已保存的工艺流程（包含新增/删除的节点）
+                await updateWorkflow(savedWorkflowId, {
+                    nodes: customNodes,
+                    edges: customEdges,
+                    workflow_metadata: workflowData.workflow_metadata,
+                });
+                toast.success(`✅ 工艺流程已更新！（${customNodes.length} 个节点）`);
+                console.log(`✅ 已更新工艺流程 ID:${savedWorkflowId} (模板: ${selectedTemplate.id})`, {
+                    nodes: customNodes.length,
+                    edges: customEdges.length,
+                });
+            } else {
+                // 创建新的工艺流程
+                const result = await createWorkflow(workflowData);
+                
+                // 将新创建的 workflowId 保存到对应模板的映射中
+                setSavedWorkflowMap((prev) => ({
+                    ...prev,
+                    [selectedTemplate.id]: result.id,
+                }));
+                
+                toast.success(`✅ 工艺流程已保存！（ID: ${result.id}，可继续编辑）`);
+                console.log(`✅ 已创建工艺流程 ID:${result.id} (模板: ${selectedTemplate.id})`, {
+                    nodes: customNodes.length,
+                    edges: customEdges.length,
+                });
+            }
+
+            // 清除未保存标记，但保持在编辑模式
+            setHasUnsavedChanges(false);
+            // ✅ 不退出编辑模式，用户可以立即看到新节点并继续编辑
+        } catch (error: any) {
+            console.error("❌ 保存工艺流程失败:", error);
+            toast.error(error.response?.data?.detail || "保存失败，请重试");
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     // 添加节点
@@ -124,11 +308,43 @@ export default function WorkflowPage() {
 
     // 删除节点
     const handleDeleteNode = (nodeId: string) => {
-        if (confirm("确定要删除该节点吗？")) {
-            const remainingNodes = customNodes.filter((n) => n.id !== nodeId);
-            const remainingEdges = customEdges.filter((e) => e.source !== nodeId && e.target !== nodeId);
+        const nodeToDelete = customNodes.find((n) => n.id === nodeId);
+        if (!nodeToDelete) return;
+
+        if (confirm(`确定要删除节点「${nodeToDelete.name}」吗？\n\n✅ 将自动重新连接前后节点`)) {
+            // 1. 找到所有指向该节点的前驱节点（入边）
+            const incomingEdges = customEdges.filter((e) => e.target === nodeId);
+            const predecessors = incomingEdges.map((e) => e.source);
             
-            // 删除后自动刷新布局
+            // 2. 找到所有从该节点出发的后继节点（出边）
+            const outgoingEdges = customEdges.filter((e) => e.source === nodeId);
+            const successors = outgoingEdges.map((e) => e.target);
+            
+            // 3. 删除节点和所有相关连线
+            const remainingNodes = customNodes.filter((n) => n.id !== nodeId);
+            let remainingEdges = customEdges.filter((e) => e.source !== nodeId && e.target !== nodeId);
+            
+            // 4. 为每个前驱节点创建到每个后继节点的新连线（自动桥接）
+            if (predecessors.length > 0 && successors.length > 0) {
+                predecessors.forEach((pred) => {
+                    successors.forEach((succ) => {
+                        // 检查是否已存在该连线（避免重复）
+                        const edgeExists = remainingEdges.some(
+                            (e) => e.source === pred && e.target === succ
+                        );
+                        if (!edgeExists) {
+                            remainingEdges.push({
+                                id: `edge-${pred}-${succ}`,
+                                source: pred,
+                                target: succ,
+                            });
+                        }
+                    });
+                });
+                console.log(`🔗 自动桥接: ${predecessors.length} 个前驱节点 → ${successors.length} 个后继节点`);
+            }
+            
+            // 5. 删除后自动刷新布局
             const layoutedNodes = autoLayoutNodes(remainingNodes, remainingEdges);
             setCustomNodes(layoutedNodes);
             setCustomEdges(remainingEdges);
@@ -136,6 +352,15 @@ export default function WorkflowPage() {
             if (selectedNode?.id === nodeId) {
                 setSelectedNode(null);
             }
+
+            // 标记有未保存的更改
+            setHasUnsavedChanges(true);
+            toast.success(`🗑️ 已删除节点「${nodeToDelete.name}」并自动重新连接前后节点`);
+            console.log(`🗑️ 删除节点: ${nodeToDelete.name} (${nodeId})`, {
+                predecessors,
+                successors,
+                newEdges: remainingEdges.length - customEdges.length + incomingEdges.length + outgoingEdges.length,
+            });
         }
     };
 
@@ -240,42 +465,40 @@ export default function WorkflowPage() {
     // 保存节点（添加或编辑）
     const handleSaveNode = (node: ProcessNode, insertPosition?: InsertPosition) => {
         if (editorMode === "add" && insertPosition) {
-            // 添加模式：根据插入位置计算坐标和创建连接
-            let newNode = { ...node };
+            // 添加模式：根据插入位置创建连线关系，然后自动重排布局
+            const newNode = { ...node, position: { x: 0, y: 0 } }; // 临时坐标，将由 autoLayoutNodes 重新计算
             let newEdges = [...customEdges];
 
             switch (insertPosition.type) {
                 case "start": {
-                    // 在开头插入：找到第一个节点
-                    const firstNode = customNodes.reduce((first, curr) =>
-                        curr.position.x < first.position.x ? curr : first
+                    // 在开头插入：新节点作为起点
+                    // 找到当前的第一个节点（入度为0的节点）
+                    const startNodes = customNodes.filter(
+                        (n) => !customEdges.some((e) => e.target === n.id)
                     );
-                    newNode.position = {
-                        x: firstNode.position.x - 200,
-                        y: firstNode.position.y,
-                    };
-                    // 创建新节点→第一个节点的连线
-                    newEdges.push({
-                        id: `edge-${newNode.id}-${firstNode.id}`,
-                        source: newNode.id,
-                        target: firstNode.id,
+                    // 创建新节点→所有起点节点的连线
+                    startNodes.forEach((startNode) => {
+                        newEdges.push({
+                            id: `edge-${newNode.id}-${startNode.id}`,
+                            source: newNode.id,
+                            target: startNode.id,
+                        });
                     });
                     break;
                 }
                 case "end": {
-                    // 在末尾插入：找到最后一个节点
-                    const lastNode = customNodes.reduce((last, curr) =>
-                        curr.position.x > last.position.x ? curr : last
+                    // 在末尾插入：新节点作为终点
+                    // 找到当前的最后节点（出度为0的节点）
+                    const endNodes = customNodes.filter(
+                        (n) => !customEdges.some((e) => e.source === n.id)
                     );
-                    newNode.position = {
-                        x: lastNode.position.x + 200,
-                        y: lastNode.position.y,
-                    };
-                    // 创建最后节点→新节点的连线
-                    newEdges.push({
-                        id: `edge-${lastNode.id}-${newNode.id}`,
-                        source: lastNode.id,
-                        target: newNode.id,
+                    // 创建所有终点节点→新节点的连线
+                    endNodes.forEach((endNode) => {
+                        newEdges.push({
+                            id: `edge-${endNode.id}-${newNode.id}`,
+                            source: endNode.id,
+                            target: newNode.id,
+                        });
                     });
                     break;
                 }
@@ -283,34 +506,24 @@ export default function WorkflowPage() {
                     // 在指定节点之前插入
                     const targetNode = customNodes.find((n) => n.id === insertPosition.targetNodeId);
                     if (targetNode) {
-                        // 找到指向目标节点的前驱节点
-                        const incomingEdge = customEdges.find((e) => e.target === targetNode.id);
-                        const prevNode = incomingEdge
-                            ? customNodes.find((n) => n.id === incomingEdge.source)
-                            : null;
-
-                        // 计算新节点位置（在前驱和目标之间）
-                        if (prevNode && incomingEdge) {
-                            newNode.position = {
-                                x: (prevNode.position.x + targetNode.position.x) / 2,
-                                y: (prevNode.position.y + targetNode.position.y) / 2,
-                            };
-                            // 删除原有连线
-                            newEdges = newEdges.filter((e) => e.id !== incomingEdge.id);
-                            // 添加 前驱→新节点 和 新节点→目标 的连线
-                            newEdges.push({
-                                id: `edge-${prevNode.id}-${newNode.id}`,
-                                source: prevNode.id,
-                                target: newNode.id,
+                        // 找到所有指向目标节点的前驱节点
+                        const incomingEdges = customEdges.filter((e) => e.target === targetNode.id);
+                        
+                        if (incomingEdges.length > 0) {
+                            // 删除所有指向目标节点的连线
+                            newEdges = newEdges.filter((e) => e.target !== targetNode.id);
+                            
+                            // 创建前驱节点→新节点的连线
+                            incomingEdges.forEach((edge) => {
+                                newEdges.push({
+                                    id: `edge-${edge.source}-${newNode.id}`,
+                                    source: edge.source,
+                                    target: newNode.id,
+                                });
                             });
-                        } else {
-                            // 目标节点没有前驱，放在它前面
-                            newNode.position = {
-                                x: targetNode.position.x - 200,
-                                y: targetNode.position.y,
-                            };
                         }
-                        // 添加 新节点→目标 的连线
+                        
+                        // 创建新节点→目标节点的连线
                         newEdges.push({
                             id: `edge-${newNode.id}-${targetNode.id}`,
                             source: newNode.id,
@@ -323,34 +536,24 @@ export default function WorkflowPage() {
                     // 在指定节点之后插入
                     const targetNode = customNodes.find((n) => n.id === insertPosition.targetNodeId);
                     if (targetNode) {
-                        // 找到从目标节点出发的后继节点
-                        const outgoingEdge = customEdges.find((e) => e.source === targetNode.id);
-                        const nextNode = outgoingEdge
-                            ? customNodes.find((n) => n.id === outgoingEdge.target)
-                            : null;
-
-                        // 计算新节点位置（在目标和后继之间）
-                        if (nextNode && outgoingEdge) {
-                            newNode.position = {
-                                x: (targetNode.position.x + nextNode.position.x) / 2,
-                                y: (targetNode.position.y + nextNode.position.y) / 2,
-                            };
-                            // 删除原有连线
-                            newEdges = newEdges.filter((e) => e.id !== outgoingEdge.id);
-                            // 添加 新节点→后继 的连线
-                            newEdges.push({
-                                id: `edge-${newNode.id}-${nextNode.id}`,
-                                source: newNode.id,
-                                target: nextNode.id,
+                        // 找到所有从目标节点出发的后继节点
+                        const outgoingEdges = customEdges.filter((e) => e.source === targetNode.id);
+                        
+                        if (outgoingEdges.length > 0) {
+                            // 删除所有从目标节点出发的连线
+                            newEdges = newEdges.filter((e) => e.source !== targetNode.id);
+                            
+                            // 创建新节点→后继节点的连线
+                            outgoingEdges.forEach((edge) => {
+                                newEdges.push({
+                                    id: `edge-${newNode.id}-${edge.target}`,
+                                    source: newNode.id,
+                                    target: edge.target,
+                                });
                             });
-                        } else {
-                            // 目标节点没有后继，放在它后面
-                            newNode.position = {
-                                x: targetNode.position.x + 200,
-                                y: targetNode.position.y,
-                            };
                         }
-                        // 添加 目标→新节点 的连线
+                        
+                        // 创建目标节点→新节点的连线
                         newEdges.push({
                             id: `edge-${targetNode.id}-${newNode.id}`,
                             source: targetNode.id,
@@ -361,18 +564,28 @@ export default function WorkflowPage() {
                 }
             }
 
-            // 添加新节点并自动刷新布局
+            // 添加新节点到列表，然后自动重排整个流程图
             const updatedNodes = [...customNodes, newNode];
             const layoutedNodes = autoLayoutNodes(updatedNodes, newEdges);
             
             setCustomNodes(layoutedNodes);
             setCustomEdges(newEdges);
+
+            // 标记有未保存的更改
+            setHasUnsavedChanges(true);
+            toast.success(`➕ 已添加节点「${node.name}」（未保存到数据库）`);
+            console.log(`➕ 添加节点: ${node.name} (${node.id})`, { insertPosition });
         } else {
-            // 编辑模式：只更新节点信息
+            // 编辑模式：只更新节点信息，不重排布局
             setCustomNodes(customNodes.map((n) => (n.id === node.id ? node : n)));
             if (selectedNode?.id === node.id) {
                 setSelectedNode(node);
             }
+
+            // 标记有未保存的更改
+            setHasUnsavedChanges(true);
+            toast.success(`✏️ 已修改节点「${node.name}」（未保存到数据库）`);
+            console.log(`✏️ 编辑节点: ${node.name} (${node.id})`);
         }
     };
 
@@ -421,20 +634,58 @@ export default function WorkflowPage() {
                         </div>
 
                         {/* 编辑模式控制按钮 */}
-                        {!isEditMode ? (
+                        {!isEditMode && !savedWorkflowId && (
                             <Button variant="outline" size="sm" onClick={handleEnterEditMode}>
                                 <Edit3 className="size-4 mr-1" />
                                 编辑模式
                             </Button>
-                        ) : (
+                        )}
+                        {!isEditMode && savedWorkflowId && (
+                            <>
+                                <Button variant="outline" size="sm" onClick={handleEnterEditMode}>
+                                    <Edit3 className="size-4 mr-1" />
+                                    继续编辑
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                        if (confirm("确定要清除当前模板的自定义流程并回到模板视图吗？\n\n⚠️ 其他模板的自定义流程不会受影响")) {
+                                            // 从 map 中移除当前模板的 workflowId
+                                            setSavedWorkflowMap((prev) => {
+                                                const newMap = { ...prev };
+                                                delete newMap[selectedTemplate.id];
+                                                return newMap;
+                                            });
+                                            setCustomNodes([]);
+                                            setCustomEdges([]);
+                                            toast.info("已切换到模板视图");
+                                        }
+                                    }}
+                                >
+                                    <RotateCcw className="size-4 mr-1" />
+                                    回到模板
+                                </Button>
+                            </>
+                        )}
+                        {isEditMode && (
                             <div className="flex gap-2">
                                 <Button variant="outline" size="sm" onClick={handleResetEdit}>
                                     <RotateCcw className="size-4 mr-1" />
                                     重置
                                 </Button>
-                                <Button variant="default" size="sm" onClick={handleSaveEdit}>
+                                <Button
+                                    variant="default"
+                                    size="sm"
+                                    onClick={handleSaveEdit}
+                                    disabled={isSaving}
+                                >
                                     <Save className="size-4 mr-1" />
-                                    保存
+                                    {isSaving
+                                        ? "保存中..."
+                                        : savedWorkflowId
+                                        ? "更新"
+                                        : "保存"}
                                 </Button>
                                 <Button variant="ghost" size="sm" onClick={handleExitEditMode}>
                                     退出编辑
@@ -452,7 +703,7 @@ export default function WorkflowPage() {
                                 <Settings className="size-3" />
                                 {stats.equipmentNodes} 台设备
                             </Badge>
-                            {!isEditMode && (
+                            {!isEditMode && !savedWorkflowId && (
                                 <Badge
                                     variant="secondary"
                                     className="gap-1"
@@ -462,10 +713,23 @@ export default function WorkflowPage() {
                                     {selectedTemplate.co2Range.min}-{selectedTemplate.co2Range.max} t CO₂
                                 </Badge>
                             )}
+                            {!isEditMode && savedWorkflowId && (
+                                <Badge
+                                    variant="default"
+                                    className="gap-1"
+                                    title={`当前查看的是自定义工艺流程（ID: ${savedWorkflowId}）`}
+                                >
+                                    <Save className="size-3" />
+                                    自定义流程
+                                </Badge>
+                            )}
                             {isEditMode && (
-                                <Badge variant="default" className="gap-1 animate-pulse">
+                                <Badge 
+                                    variant={hasUnsavedChanges ? "destructive" : "default"} 
+                                    className="gap-1 animate-pulse"
+                                >
                                     <Edit3 className="size-3" />
-                                    编辑中
+                                    {hasUnsavedChanges ? "未保存 ⚠️" : "编辑中"}
                                 </Badge>
                             )}
                         </div>
@@ -585,20 +849,20 @@ export default function WorkflowPage() {
                                     <CardContent className="p-4 space-y-2">
                                         {currentNodes.map((node) => (
                                             <div key={node.id} className="flex items-center gap-2">
-                                                <Button
-                                                    variant={
-                                                        selectedNode?.id === node.id ? "default" : "outline"
-                                                    }
+                                            <Button
+                                                variant={
+                                                    selectedNode?.id === node.id ? "default" : "outline"
+                                                }
                                                     className="flex-1 justify-start gap-2 h-auto py-3"
-                                                    onClick={() => handleNodeSelect(node)}
-                                                >
-                                                    <div className="flex flex-col items-start gap-1 flex-1">
-                                                        <span className="font-medium">{node.name}</span>
-                                                        <span className="text-xs opacity-70">
-                                                            {node.description}
-                                                        </span>
-                                                    </div>
-                                                </Button>
+                                                onClick={() => handleNodeSelect(node)}
+                                            >
+                                                <div className="flex flex-col items-start gap-1 flex-1">
+                                                    <span className="font-medium">{node.name}</span>
+                                                    <span className="text-xs opacity-70">
+                                                        {node.description}
+                                                    </span>
+                                                </div>
+                                            </Button>
                                                 {isEditMode && (
                                                     <div className="flex gap-1">
                                                         <Button
@@ -654,10 +918,10 @@ export default function WorkflowPage() {
                                     </Card>
                                 )}
                                 <div className="flex-1 overflow-hidden">
-                                    <NodeDetailPanel
-                                        node={selectedNode}
-                                        onClose={() => setSelectedNode(null)}
-                                    />
+                            <NodeDetailPanel
+                                node={selectedNode}
+                                onClose={() => setSelectedNode(null)}
+                            />
                                 </div>
                             </div>
                         ) : (

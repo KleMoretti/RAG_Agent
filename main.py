@@ -537,6 +537,15 @@ try:
     except Exception as e:
         print(f"❌ Failed to mount equipment monitoring routes: {e}")
 
+    # Mount workflow management routes
+    try:
+        from src.api.workflow import router as workflow_router
+
+        app.include_router(workflow_router)
+        print(f"✅ Workflow management routes mounted at {workflow_router.prefix}")
+    except Exception as e:
+        print(f"❌ Failed to mount workflow management routes: {e}")
+
     _app_agents: dict[str, RAGAgent] = {}
 
     def _get_agent(
