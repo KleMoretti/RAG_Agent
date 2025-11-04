@@ -462,6 +462,8 @@ try:
         fallback_mode: bool = False  # 是否使用了降级模式（RAG超时）
         intent_skip_rag: bool = False  # 是否因意图判断跳过RAG
         intent_reason: str | None = None  # 意图判断理由
+        domain_check_failed: bool = False  # 是否领域检查失败（需要转发）
+        suggested_agent: str | None = None  # 建议咨询的 Agent ID
 
     class FileUploadResponse(BaseModel):
         success: bool
@@ -1023,12 +1025,35 @@ try:
             result = await loop.run_in_executor(None, agent.run, req.message)
 
         steps = _serialize_steps(result.get("reasoning_steps", []))
+        response_text = result.get("response", "")
+        
+        # 检测是否为领域转发建议
+        is_domain_redirect = "🔄 **领域转发建议**" in response_text
+        suggested_agent_id = None
+        
+        if is_domain_redirect:
+            # 尝试从响应中提取建议的 Agent（简单匹配）
+            agent_mapping = {
+                "通用助手": "general",
+                "工艺专家": "process",
+                "设备诊断": "equipment",
+                "市场分析师": "market",
+                "质量顾问": "quality",
+                "节能专家": "environment",
+            }
+            for agent_name, agent_id in agent_mapping.items():
+                if f"**{agent_name}**" in response_text:
+                    suggested_agent_id = agent_id
+                    break
+        
         return ChatResponse(
-            response=result.get("response", ""),
+            response=response_text,
             reasoning_steps=steps,
             fallback_mode=fallback_mode,
             intent_skip_rag=False,  # 使用了 RAG（或降级）
             intent_reason=intent_reason if not fallback_mode else None,
+            domain_check_failed=is_domain_redirect,
+            suggested_agent=suggested_agent_id,
         )
 
     @app.post("/api/chat/stream")

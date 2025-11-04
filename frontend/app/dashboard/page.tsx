@@ -528,15 +528,19 @@ export default function DashboardPage() {
         setError("");
 
         try {
-            const response = await uploadChatFile(file, (progressEvent) => {
-                if (!progressEvent.total) {
-                    return;
+            const response = await uploadChatFile(
+                file,
+                'user_upload', // 上传到用户临时目录
+                (progressEvent) => {
+                    if (!progressEvent.total) {
+                        return;
+                    }
+                    const percent = Math.round(
+                        (progressEvent.loaded / progressEvent.total) * 100,
+                    );
+                    setUploadProgress(percent);
                 }
-                const percent = Math.round(
-                    (progressEvent.loaded / progressEvent.total) * 100,
-                );
-                setUploadProgress(percent);
-            });
+            );
 
             if (!response.success) {
                 setUploadStatus("error");
@@ -835,12 +839,14 @@ export default function DashboardPage() {
                                     <ChatMessageComponent
                                         key={message.id || index}
                                         message={message}
-                                        agentIcon={MessageIcon}
-                                        agentName={messageAgent.name}
-                                        agentColorScheme={
-                                            messageAgent.colorScheme
-                                        }
-                                        showReasoningSteps={true}
+                                        onSwitchAgent={(agentId) => {
+                                            const targetAgent = agents.find(
+                                                (a) => a.id === agentId,
+                                            );
+                                            if (targetAgent) {
+                                                setSelectedAgent(targetAgent);
+                                            }
+                                        }}
                                     />
                                 );
                             })}
@@ -849,14 +855,7 @@ export default function DashboardPage() {
                             {isStreaming && (
                                 <StreamingMessage
                                     content={streamingContent}
-                                    agentIcon={
-                                        AgentIcon as React.ComponentType<{
-                                            className?: string;
-                                        }>
-                                    }
-                                    agentName={currentAgent.name}
-                                    agentColorScheme={currentAgent.colorScheme}
-                                    isTyping={true}
+                                    isGenerating={true}
                                 />
                             )}
 
@@ -915,10 +914,10 @@ export default function DashboardPage() {
                     {/* 文件上传进度条 */}
                     {isUploading && currentUploadFile && (
                         <FileUploadProgress
-                            fileName={currentUploadFile}
+                            filename={currentUploadFile}
                             progress={uploadProgress}
                             status={uploadStatus}
-                            errorMessage={uploadError}
+                            error={uploadError}
                         />
                     )}
 

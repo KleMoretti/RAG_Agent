@@ -8,18 +8,42 @@ import type { ChatMessage as ChatMessageType } from "@/lib/types/api";
 import { MarkdownContent } from "./MarkdownContent";
 import { ReasoningStepDisplay } from "./ReasoningStepDisplay";
 import { SourceDisplay } from "./SourceDisplay";
+import { DomainBoundaryAlert } from "./DomainBoundaryAlert";
 
 interface ChatMessageProps {
     message: ChatMessageType;
+    onSwitchAgent?: (agentId: string) => void;
 }
 
-export function ChatMessage({ message }: ChatMessageProps) {
+export function ChatMessage({ message, onSwitchAgent }: ChatMessageProps) {
     const isUser = message.role === "user";
     const hasAttachments =
         message.attachments && message.attachments.length > 0;
     const hasSources = message.sources && message.sources.length > 0;
     const hasReasoning =
         message.reasoningSteps && message.reasoningSteps.length > 0;
+    const isDomainCheckFailed = message.domain_check_failed === true;
+
+    // 如果是领域检查失败的消息，显示特殊的警告框
+    if (!isUser && isDomainCheckFailed) {
+        return (
+            <div className="flex gap-3 justify-start">
+                <Avatar className="h-8 w-8 shrink-0">
+                    <AvatarFallback className="bg-primary text-primary-foreground">
+                        <Bot className="h-4 w-4" />
+                    </AvatarFallback>
+                </Avatar>
+
+                <div className="flex flex-col gap-2 max-w-[80%]">
+                    <DomainBoundaryAlert
+                        content={message.content}
+                        suggestedAgent={message.suggested_agent}
+                        onSwitchAgent={onSwitchAgent}
+                    />
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div

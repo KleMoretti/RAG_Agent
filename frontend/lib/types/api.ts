@@ -79,6 +79,8 @@ export interface ChatMessage {
             border?: string;
         };
     }; // Agent display info when message was sent
+    domain_check_failed?: boolean; // 领域检查失败标志
+    suggested_agent?: string; // 建议咨询的 Agent ID
 }
 
 /**
