@@ -20,11 +20,17 @@ def clear_vector_store(data_dir: Path, dry_run: bool = False):
     embed_dir = data_dir / "embeddings"
     
     files_to_remove = [
+        # 旧版单索引（向后兼容）
         embed_dir / "index.faiss",
         embed_dir / "index.meta.jsonl",
         embed_dir / "index_fast.faiss",
         embed_dir / "index_fast.meta.jsonl",
         embed_dir / "index_fast.config.json",
+        # 新版双索引
+        embed_dir / "knowledge_base.faiss",
+        embed_dir / "knowledge_base.meta.jsonl",
+        embed_dir / "user_uploads.faiss",
+        embed_dir / "user_uploads.meta.jsonl",
     ]
     
     removed_count = 0

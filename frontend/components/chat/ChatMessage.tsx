@@ -24,27 +24,6 @@ export function ChatMessage({ message, onSwitchAgent }: ChatMessageProps) {
         message.reasoningSteps && message.reasoningSteps.length > 0;
     const isDomainCheckFailed = message.domain_check_failed === true;
 
-    // 如果是领域检查失败的消息，显示特殊的警告框
-    if (!isUser && isDomainCheckFailed) {
-        return (
-            <div className="flex gap-3 justify-start">
-                <Avatar className="h-8 w-8 shrink-0">
-                    <AvatarFallback className="bg-primary text-primary-foreground">
-                        <Bot className="h-4 w-4" />
-                    </AvatarFallback>
-                </Avatar>
-
-                <div className="flex flex-col gap-2 max-w-[80%]">
-                    <DomainBoundaryAlert
-                        content={message.content}
-                        suggestedAgent={message.suggested_agent}
-                        onSwitchAgent={onSwitchAgent}
-                    />
-                </div>
-            </div>
-        );
-    }
-
     return (
         <div
             className={`flex gap-3 ${isUser ? "justify-end" : "justify-start"}`}

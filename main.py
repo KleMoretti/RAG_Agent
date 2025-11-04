@@ -1028,7 +1028,7 @@ try:
         response_text = result.get("response", "")
         
         # 检测是否为领域转发建议
-        is_domain_redirect = "🔄 **领域转发建议**" in response_text
+        is_domain_redirect = "🔄 领域转发建议" in response_text
         suggested_agent_id = None
         
         if is_domain_redirect:
@@ -1280,8 +1280,27 @@ try:
                     yield f"data: {json_lib.dumps({'type': 'content', 'delta': chunk})}\n\n"
                     await asyncio.sleep(0.05)  # 模拟打字效果
 
-                # 7. 发送完成标记
-                yield f"data: {json_lib.dumps({'type': 'done', 'fallback_mode': fallback_mode})}\n\n"
+                # 检测是否为领域转发建议
+                is_domain_redirect = "🔄 领域转发建议" in response_text
+                suggested_agent_id = None
+                
+                if is_domain_redirect:
+                    # 尝试从响应中提取建议的 Agent（简单匹配）
+                    agent_mapping = {
+                        "通用助手": "general",
+                        "工艺专家": "process",
+                        "设备诊断": "equipment",
+                        "市场分析师": "market",
+                        "质量顾问": "quality",
+                        "节能专家": "environment",
+                    }
+                    for agent_name, agent_id in agent_mapping.items():
+                        if f"{agent_name}" in response_text:
+                            suggested_agent_id = agent_id
+                            break
+
+                # 7. 发送完成标记（包含领域检查信息）
+                yield f"data: {json_lib.dumps({'type': 'done', 'fallback_mode': fallback_mode, 'domain_check_failed': is_domain_redirect, 'suggested_agent': suggested_agent_id})}\n\n"
                 yield "data: [DONE]\n\n"
 
             except Exception as e:

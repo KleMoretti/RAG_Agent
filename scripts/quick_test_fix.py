@@ -28,8 +28,8 @@ def test_retrieval():
     embedder = Embedder(model_name="all-MiniLM-L6-v2")
     store = VectorStore(
         dim=embedder.dim,
-        index_path=Path("data/embeddings/index.faiss"),
-        metadata_path=Path("data/embeddings/index.meta.jsonl"),
+        index_path=Path("data/embeddings/knowledge_base.faiss"),
+        metadata_path=Path("data/embeddings/knowledge_base.meta.jsonl"),
         normalize=False
     )
     

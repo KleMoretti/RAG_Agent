@@ -120,6 +120,11 @@ export interface ChatRequest {
 export interface ChatResponse {
     response: string;
     reasoningSteps?: ReasoningStep[];
+    fallback_mode?: boolean; // 是否使用了降级模式（RAG超时）
+    intent_skip_rag?: boolean; // 是否因意图判断跳过RAG
+    intent_reason?: string; // 意图判断理由
+    domain_check_failed?: boolean; // 是否领域检查失败（需要转发）
+    suggested_agent?: string; // 建议咨询的 Agent ID
 }
 
 /**

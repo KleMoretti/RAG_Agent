@@ -93,6 +93,8 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}) {
                 let accumulatedContent = "";
                 let sources: DocumentSource[] = [];
                 let reasoning: ReasoningStep[] = [];
+                let domainCheckFailed = false;
+                let suggestedAgent: string | undefined;
 
                 while (true) {
                     const { done, value } = await reader.read();
@@ -197,7 +199,13 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}) {
                                     break;
 
                                 case "done":
-                                    // Stream complete
+                                    // Stream complete - extract metadata
+                                    if (event.domain_check_failed !== undefined) {
+                                        domainCheckFailed = event.domain_check_failed;
+                                    }
+                                    if (event.suggested_agent !== undefined) {
+                                        suggestedAgent = event.suggested_agent;
+                                    }
                                     break;
 
                                 case "error":
@@ -223,6 +231,8 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}) {
                     reasoningSteps:
                         reasoning.length > 0 ? reasoning : undefined,
                     sources: sources.length > 0 ? sources : undefined,
+                    domain_check_failed: domainCheckFailed,
+                    suggested_agent: suggestedAgent,
                 };
 
                 setState({

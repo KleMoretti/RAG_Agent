@@ -30,9 +30,18 @@ def migrate_index():
     """迁移索引到快速版本"""
     settings = get_settings()
     
-    # 路径配置
+    # 路径配置（优先使用新路径，兼容旧路径）
+    new_kb_path = Path("data/embeddings/knowledge_base.faiss")
     old_index_path = Path("data/embeddings/index.faiss")
-    old_meta_path = Path("data/embeddings/index.meta.jsonl")
+    
+    # 自动检测使用哪个路径
+    if new_kb_path.exists():
+        source_path = new_kb_path
+        old_meta_path = Path("data/embeddings/knowledge_base.meta.jsonl")
+    else:
+        source_path = old_index_path
+        old_meta_path = Path("data/embeddings/index.meta.jsonl")
+    
     new_index_path = Path("data/embeddings/index_fast.faiss")
     new_meta_path = Path("data/embeddings/index_fast.meta.jsonl")
     backup_dir = Path("data/embeddings/backup")
@@ -41,21 +50,23 @@ def migrate_index():
     print("🚀 FAISS索引迁移工具 - 升级到快速索引")
     print("=" * 60)
     
-    # 1. 检查旧索引是否存在
-    if not old_index_path.exists():
-        print(f"❌ 未找到旧索引: {old_index_path}")
-        print("   请先运行 scripts/build_rag_system.py 构建索引")
+    # 1. 检查源索引是否存在
+    if not source_path.exists():
+        print(f"❌ 未找到源索引: {source_path}")
+        print("   请先运行 python scripts/rag_cli.py build 构建索引")
         return
     
-    print(f"\n📂 旧索引路径: {old_index_path}")
+    print(f"✅ 使用源索引: {source_path}")
+    
+    print(f"\n📂 源索引路径: {source_path}")
     print(f"📂 新索引路径: {new_index_path}")
     
-    # 2. 加载旧索引
-    print("\n⏳ 加载旧索引...")
+    # 2. 加载源索引
+    print("\n⏳ 加载源索引...")
     start = time.time()
     old_store = VectorStore(
         dim=384,  # all-MiniLM-L6-v2的维度
-        index_path=old_index_path,
+        index_path=source_path,
         metadata_path=old_meta_path,
         normalize=False,
     )
@@ -192,21 +203,30 @@ def auto_migrate():
     """自动迁移（包含备份和替换）"""
     settings = get_settings()
     
+    # 自动检测使用哪个路径
+    new_kb_path = Path("data/embeddings/knowledge_base.faiss")
     old_index_path = Path("data/embeddings/index.faiss")
-    old_meta_path = Path("data/embeddings/index.meta.jsonl")
+    
+    if new_kb_path.exists():
+        source_path = new_kb_path
+        old_meta_path = Path("data/embeddings/knowledge_base.meta.jsonl")
+    else:
+        source_path = old_index_path
+        old_meta_path = Path("data/embeddings/index.meta.jsonl")
+    
     backup_dir = Path("data/embeddings/backup")
     
     print("🔄 自动迁移模式（包含备份和替换）")
     
     # 备份
-    if old_index_path.exists():
+    if source_path.exists():
         backup_dir.mkdir(parents=True, exist_ok=True)
         timestamp = time.strftime("%Y%m%d_%H%M%S")
         backup_index = backup_dir / f"index_{timestamp}.faiss"
         backup_meta = backup_dir / f"index_{timestamp}.meta.jsonl"
         
-        print(f"📦 备份旧索引到: {backup_dir}/")
-        shutil.copy2(old_index_path, backup_index)
+        print(f"📦 备份源索引到: {backup_dir}/")
+        shutil.copy2(source_path, backup_index)
         shutil.copy2(old_meta_path, backup_meta)
         print("✅ 备份完成")
     
